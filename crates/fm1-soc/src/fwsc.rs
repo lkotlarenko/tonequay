@@ -143,7 +143,7 @@ fn raw_flash_n(file: &[u8], blocks: usize) -> Result<Vec<u8>, String> {
             let len = u32le(&e, 12) as usize;
             let mut stream = hdr.clone();
             stream.extend_from_slice(&file[blocks * 0x30..]);
-            return stream.get(off..off + len).map(|s| s.to_vec()).ok_or("truncated package".into());
+            return off.checked_add(len).and_then(|end| stream.get(off..end)).map(|s| s.to_vec()).ok_or("truncated package".into());
         }
     }
     Err("no flash image in the package".into())
@@ -217,9 +217,12 @@ fn unpack_n(file: &[u8], blocks: usize) -> Result<Unpacked, String> {
         return Err("no chip key or app area in the flash image".into());
     };
     let first = ((area + 32 + 31) & !31) - area;
+    if area.checked_add(first).is_none_or(|end| end > flash.len()) {
+        return Err("app header runs past the flash image".into());
+    }
     unscramble(&mut flash, area, first, area, key);
     let size = head(&flash, area).size;
-    if area + size > flash.len() {
+    if size < 32 || area.checked_add(size).is_none_or(|end| end > flash.len()) {
         return Err("app area runs past the flash image".into());
     }
     if size > first {
@@ -235,6 +238,9 @@ fn unpack_n(file: &[u8], blocks: usize) -> Result<Unpacked, String> {
             break;
         }
         o += 32;
+    }
+    if dir.iter().any(|h| h.name == "app.bin" && h.offset.checked_add(h.size).is_none_or(|end| end > size)) {
+        return Err("app.bin runs past the app area".into());
     }
     if !dir.iter().any(|h| h.name == "app.bin") {
         return Err("no app.bin in the app area".into());
@@ -499,5 +505,62 @@ mod tests {
         assert_eq!(usr_load_syx(&mut smk, usr, UsrLayout::SMK37, &bank, 0), Ok(32));
         assert!(smk[usr..usr + 4096].iter().all(|&b| b == 0x23));
         assert_eq!(&smk[usr + 4096 + 118..usr + 4096 + 128], b"INIT VOICE", "slot 32 kept");
+    }
+}
+
+#[cfg(test)]
+mod malformed_tests {
+    use super::*;
+
+    // Build just the container/directory required to exercise an untrusted app offset.
+    fn package_with_area(area: u32) -> Vec<u8> {
+        let mut raw = vec![0u8; 256];
+        raw[32 + 4..32 + 8].copy_from_slice(&128u32.to_le_bytes());
+        raw[32 + 16..32 + 30].copy_from_slice(b"isd_config.ini");
+        unmask(&mut raw[32..64], 0xffff);
+        raw[64 + 4..64 + 8].copy_from_slice(&area.to_le_bytes());
+        raw[64 + 12] = 0x81;
+        raw[64 + 14] = 1;
+        raw[64 + 16..64 + 28].copy_from_slice(b"app_dir_head");
+        unmask(&mut raw[64..96], 0xffff);
+        let mut header = vec![0u8; 20 * 47];
+        header[8..10].copy_from_slice(&1u16.to_le_bytes());
+        let crc = crc16(&header[2..64]);
+        header[..2].copy_from_slice(&crc.to_le_bytes());
+        unmask(&mut header[..64], 0xffff);
+        // Image starts immediately after the marker-free package header.
+        let mut image = [0u8; 80];
+        image[8..12].copy_from_slice(&(header.len() as u32).to_le_bytes());
+        image[12..16].copy_from_slice(&(raw.len() as u32).to_le_bytes());
+        unmask(&mut image, 0xffff);
+        header[64..144].copy_from_slice(&image);
+        let mut file = Vec::new();
+        for block in header.chunks_exact(47) {
+            file.extend_from_slice(block);
+            file.push(0x7d);
+        }
+        file.extend_from_slice(&raw);
+        file
+    }
+
+    #[test]
+    fn hostile_app_offsets_return_errors_without_panics() {
+        for offset in [0xffu32, 256, 1024, u32::MAX] {
+            assert!(unpack(&package_with_area(offset)).is_err());
+        }
+    }
+
+    #[test]
+    fn truncated_and_random_packages_are_rejected_without_panics() {
+        let mut state = 123u64;
+        for len in 0..2048 {
+            let bytes: Vec<_> = (0..len).map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                state as u8
+            }).collect();
+            assert!(unpack(&bytes).is_err());
+        }
     }
 }

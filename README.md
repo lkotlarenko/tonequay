@@ -1,5 +1,11 @@
 # FM-1 emulator
 
+**FM-1 Studio (native Linux):** the `fm1-studio` workspace crate adds a firmware
+library, native display/panel, CPAL audio, MiniLab MIDI/Learn and isolated flash
+saves. See [Studio instructions](docs/FM1_STUDIO.md),
+[verification/limitations](docs/FM1_STUDIO_TEST_REPORT.md), and `make studio-appimage`.
+No firmware is bundled.
+
 The **M-VAVE FM-1** is a pocket FM synthesizer, and a small community writes its own firmwares
 for it: drum machines, grooveboxes, ambient generators, a chord harp. This project emulates the
 FM-1 itself, its CPU, screen, keys, knobs and audio, so every one of those firmwares runs
