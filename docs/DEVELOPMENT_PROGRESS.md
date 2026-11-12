@@ -91,3 +91,20 @@ switch/save/error steps with ZERO missing output frames. Observed callbacks were
 about 50 ms after warmup. Stable/low profile hardware qualification and true
 round-trip latency remain unmeasured. Latest desktop process samples were roughly
 173 MiB peak RSS and 50% of one CPU core (includes full 240 MHz emulation).
+
+## Phase 8 — delivered first working release
+
+Final workspace run passes all 204 Rust tests. Studio scoped fmt and strict Clippy
+pass; all six web regression scripts pass. Release/AppImage and copied outside-tree
+Wayland/X11 GUI tests pass, including the scrollable branded Preferences screen.
+Actual MiniLab standard port connects; physical playing remains unverified.
+Normal-buffer lifecycle reports zero missing frames. The final report lists
+remaining feature/qualification limits explicitly rather than claiming full coverage.
+
+AppImage packaging also includes runtime and embedded-font licenses, checks the
+staged ELF, and replaces finished artifacts atomically so rebuilding while an old
+release is running cannot corrupt it. Desktop entries validate, filenames with
+spaces work, and checksums are recorded in dist/SHA256SUMS. Launcher installation
+was tested in a temporary XDG root, preserving the user's actual desktop settings.
+Source, build tasks, installation/troubleshooting instructions, release notes and
+raw measurements are included. No firmware binaries are tracked or packaged.

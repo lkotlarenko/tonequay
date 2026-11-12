@@ -1,0 +1,55 @@
+{
+  "checked_packages": 472,
+  "findings": [
+    {
+      "name": "instant",
+      "version": "0.1.13",
+      "vulns": [
+        {
+          "id": "RUSTSEC-2024-0384",
+          "modified": "2024-11-10T13:10:28Z"
+        }
+      ]
+    },
+    {
+      "name": "ttf-parser",
+      "version": "0.25.1",
+      "vulns": [
+        {
+          "id": "RUSTSEC-2026-0192",
+          "modified": "2026-06-29T21:15:04.384453Z"
+        }
+      ]
+    },
+    {
+      "name": "zbus_names",
+      "version": "4.3.5",
+      "vulns": [
+        {
+          "id": "RUSTSEC-2026-0371",
+          "modified": "2026-10-17T15:30:02.407875Z"
+        }
+      ]
+    },
+    {
+      "name": "zvariant",
+      "version": "5.15.1",
+      "vulns": [
+        {
+          "id": "RUSTSEC-2026-0370",
+          "modified": "2026-10-17T15:30:02.390032Z"
+        }
+      ]
+    },
+    {
+      "name": "zvariant_derive",
+      "version": "5.15.1",
+      "vulns": [
+        {
+          "id": "RUSTSEC-2026-0372",
+          "modified": "2026-10-17T15:30:02.394812Z"
+        }
+      ]
+    }
+  ]
+}

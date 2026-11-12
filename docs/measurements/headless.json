@@ -1,0 +1,74 @@
+[
+  {
+    "firmware": "felucca",
+    "implementation": "studio",
+    "sha256": "b57724fff5a9b55b67d6f8a7d852e68d5d5814ed6fb769ec80a274fb44958e12",
+    "exit_code": 0,
+    "wall_seconds": 2.155872997998813,
+    "user_seconds": 2.046066,
+    "system_seconds": 0.026338,
+    "peak_rss_kib": 70848,
+    "stdout": "{\"emulated_ms\":5000,\"firmware\":\"/home/elly/Projects/fm1-emu/reference/firmwares/felucca.fwsc\",\"first_audio_wall_ms\":56,\"nonzero_samples\":284383,\"samples\":430592,\"speed\":2.32479539283952,\"wall_ms\":2150}\n",
+    "stderr": ""
+  },
+  {
+    "firmware": "felucca",
+    "implementation": "live",
+    "sha256": "b57724fff5a9b55b67d6f8a7d852e68d5d5814ed6fb769ec80a274fb44958e12",
+    "exit_code": 0,
+    "wall_seconds": 2.1078924290013674,
+    "user_seconds": 2.030125,
+    "system_seconds": 0.017464999999999998,
+    "peak_rss_kib": 69752,
+    "stdout": "steady: Some(2.280779247662203)x real time; 215424 real audio frames\nicache: 12212 decodes for 1079800000 instructions\nloop skip: 0.0% of cycles (294 probes, 0 found a loop)\n5000 ms emulated at 240 MHz in 2.08 s wall: 2.40x real time, 519.1 M instructions/s, 10% of cycles skipped as idle\n",
+    "stderr": ""
+  },
+  {
+    "firmware": "waveloop",
+    "implementation": "studio",
+    "sha256": "e9529deb7ff626ee64b08fe06a550e39cd2a99c3cc1697bfcb65828f030cf22d",
+    "exit_code": 0,
+    "wall_seconds": 2.1019059410027694,
+    "user_seconds": 2.009809,
+    "system_seconds": 0.014702999999999999,
+    "peak_rss_kib": 70544,
+    "stdout": "{\"emulated_ms\":5000,\"firmware\":\"/home/elly/Projects/fm1-emu/reference/firmwares/waveloop.fwsc\",\"first_audio_wall_ms\":49,\"nonzero_samples\":270392,\"samples\":430592,\"speed\":2.3869151473214196,\"wall_ms\":2094}\n",
+    "stderr": ""
+  },
+  {
+    "firmware": "waveloop",
+    "implementation": "live",
+    "sha256": "e9529deb7ff626ee64b08fe06a550e39cd2a99c3cc1697bfcb65828f030cf22d",
+    "exit_code": 0,
+    "wall_seconds": 2.2394631069983006,
+    "user_seconds": 2.109088,
+    "system_seconds": 0.013427999999999999,
+    "peak_rss_kib": 69476,
+    "stdout": "steady: Some(2.1814140966709146)x real time; 215296 real audio frames\nicache: 10643 decodes for 1076200000 instructions\nloop skip: 0.0% of cycles (294 probes, 0 found a loop)\n5000 ms emulated at 240 MHz in 2.23 s wall: 2.24x real time, 481.9 M instructions/s, 10% of cycles skipped as idle\n",
+    "stderr": ""
+  },
+  {
+    "firmware": "amb",
+    "implementation": "studio",
+    "sha256": "a949a6a2a1ced8b3857d156ad0409a55e6ba53bbdd4094d0a38f2779364064f3",
+    "exit_code": 0,
+    "wall_seconds": 2.1902459129996714,
+    "user_seconds": 2.123316,
+    "system_seconds": 0.013679,
+    "peak_rss_kib": 70680,
+    "stdout": "{\"emulated_ms\":5000,\"firmware\":\"/home/elly/Projects/fm1-emu/reference/firmwares/amb.fwsc\",\"first_audio_wall_ms\":49,\"nonzero_samples\":384815,\"samples\":430080,\"speed\":2.2909715275808815,\"wall_ms\":2182}\n",
+    "stderr": ""
+  },
+  {
+    "firmware": "amb",
+    "implementation": "live",
+    "sha256": "a949a6a2a1ced8b3857d156ad0409a55e6ba53bbdd4094d0a38f2779364064f3",
+    "exit_code": 0,
+    "wall_seconds": 2.298400210998807,
+    "user_seconds": 2.197611,
+    "system_seconds": 0.015721,
+    "peak_rss_kib": 69668,
+    "stdout": "steady: Some(2.013784742200138)x real time; 215040 real audio frames\nicache: 10948 decodes for 1073800000 instructions\nloop skip: 0.5% of cycles (704 probes, 361 found a loop)\n5000 ms emulated at 240 MHz in 2.29 s wall: 2.18x real time, 468.4 M instructions/s, 11% of cycles skipped as idle\n",
+    "stderr": ""
+  }
+]

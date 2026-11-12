@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=FM-1 Studio
+Comment=Native FM-1 firmware workstation
+Exec=fm1-studio %f
+Icon=fm1-studio
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+Keywords=FM-1;MIDI;Synthesizer;Emulator;
+StartupWMClass=com.fm1studio.Studio
+MimeType=application/x-fm1-fwsc;

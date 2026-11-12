@@ -1,0 +1,235 @@
+{
+  "backend": "x11",
+  "exit_code": 0,
+  "binary": "/home/elly/Projects/fm1-emu/dist/FM1-Studio-x86_64.AppImage",
+  "firmware": "/home/elly/Projects/fm1-emu/reference/firmwares/felucca.fwsc",
+  "wall_seconds": 11.270359699999972,
+  "clock_ticks": 100,
+  "samples": [
+    {
+      "elapsed": 0.00048754199815448374,
+      "cpu_ticks": 0,
+      "rss_kib": 596
+    },
+    {
+      "elapsed": 0.2507678459987801,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 0.5011265789980826,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 0.7513682909993804,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 1.0016601870011073,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 1.2520040919989697,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 1.5023316059996432,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 1.7527038650005125,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 2.003167888000462,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 2.2535479420002957,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 2.504190182000457,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 2.75452713499908,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 3.0048140629987756,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 3.255077206998976,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 3.5053292989978218,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 3.755564750001213,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 4.005793729000288,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 4.256028799998603,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 4.506296913001279,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 4.756639627998084,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 5.006980128000578,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 5.257261116999871,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 5.507517228001234,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 5.757838451998396,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 6.008111064998957,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 6.258371904998057,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 6.508680926999659,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 6.75971619199845,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 7.014650855999207,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 7.265741437000543,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 7.515996056001313,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 7.7662599430004775,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 8.0165007459982,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 8.266862748998392,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 8.517134090998297,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 8.767414800000552,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 9.017719575000228,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 9.268136521997803,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 9.518384709997918,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 9.768730432999291,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 10.019251576999523,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 10.269500768001308,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 10.51973449900106,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 10.76998073499999,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    },
+    {
+      "elapsed": 11.020222099999955,
+      "cpu_ticks": 1,
+      "rss_kib": 2788
+    }
+  ]
+}

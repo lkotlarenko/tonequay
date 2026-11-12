@@ -19,7 +19,12 @@ pub fn install() -> Result<String, String> {
         &root.join("icons/hicolor/scalable/apps/fm1-studio.svg"),
         include_bytes!("../../../packaging/studio/fm1-studio.svg"),
     )?;
-    let entry=format!("[Desktop Entry]\nType=Application\nName=FM-1 Studio\nComment=Your firmware. Your instrument.\nExec={} %f\nIcon=fm1-studio\nTerminal=false\nCategories=AudioVideo;Audio;Music;\nStartupWMClass=com.fm1studio.Studio\nKeywords=FM-1;MIDI;Synthesizer;Emulator;\n",quote(executable.to_str().ok_or("launcher path must be valid UTF-8")?)?);
+    let launcher_prefix = if std::env::var_os("APPIMAGE").is_some() {
+        "env APPIMAGE_EXTRACT_AND_RUN=1 "
+    } else {
+        ""
+    };
+    let entry=format!("[Desktop Entry]\nType=Application\nName=FM-1 Studio\nComment=Your firmware. Your instrument.\nExec={launcher_prefix}{} %f\nIcon=fm1-studio\nTerminal=false\nCategories=AudioVideo;Audio;Music;\nStartupWMClass=com.fm1studio.Studio\nKeywords=FM-1;MIDI;Synthesizer;Emulator;\n",quote(executable.to_str().ok_or("launcher path must be valid UTF-8")?)?);
     let path = root.join("applications/com.fm1studio.Studio.desktop");
     persistence::atomic(&path, entry.as_bytes())?;
     Ok(format!(
