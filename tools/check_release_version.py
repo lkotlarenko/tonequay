@@ -12,3 +12,8 @@ ref = os.environ.get('RELEASE_REF', '')
 if ref.startswith('refs/tags/') and ref != 'refs/tags/v' + match[1]:
     raise SystemExit(f'tag {ref} disagrees with Tonequay {match[1]}')
 print('Tonequay', match[1])
+
+output = os.environ.get('GITHUB_OUTPUT')
+if output:
+    with open(output, 'a', encoding='utf-8') as stream:
+        stream.write(f'version={match[1]}\n')

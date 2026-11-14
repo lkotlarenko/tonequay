@@ -196,3 +196,14 @@ The final packaging update adds the standalone license archive and includes the
 current architecture guide. No public release/tag is created; real hardware
 playing/hotplug, sustained audio profiles and a full accessibility audit remain
 explicit qualification limits.
+
+
+## 2026-11-14 — automatic public releases
+
+The user explicitly requested publishing the latest successful Actions artifact
+and automatic public releases after successful AppImage runs. Final revision
+3397070 passed both CI (43631619684) and AppImage build (43631631012). Preparing
+v0.1.0 from those exact artifacts. Updated automation: version tags publish normal
+releases; manual runs publish unique prereleases without changing latest stable.
+Uploads finish in a temporary draft before automatic publication. Failed builds
+never reach the publish job, and published stable assets are not overwritten.

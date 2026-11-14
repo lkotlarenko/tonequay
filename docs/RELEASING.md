@@ -14,20 +14,35 @@ and smoke-test the AppImage outside the source tree on Wayland and X11. Check
 both audio and MIDI on real hardware where available. Review all packaged files
 and license notices. Never attach firmware packages to a release.
 
-The GitHub release workflow builds a tagged version and uploads an AppImage,
-native executable, license archive and checksums to a **draft release**. A maintainer reviews the
-artifacts and publishes it. This automation is prepared locally and is not
-verified until it has run in the new repository. Do not tag a release before the
-packaging-tool setup and CI are working on the runner.
+The **Linux AppImage** workflow publishes automatically after every successful
+build, firmware smoke, checksum check and artifact upload:
+
+- Push a `v<application-version>` tag to publish a normal versioned release.
+  The tag must match `crates/tonequay/Cargo.toml` exactly.
+- Run the workflow manually to publish a prerelease with a unique
+  `preview-<run-id>-<attempt>-<commit>` tag. Previews do not replace the latest
+  stable release, and ordinary CI pushes do not publish anything.
+- Assets are the exact build-job artifacts: AppImage, native executable,
+  standalone license archive and SHA256SUMS. Publication uploads into a temporary
+  draft first, then makes it public only once all uploads succeed.
+- Existing published versions are not overwritten. Bump the application version
+  for a new stable release; manual reruns get a distinct preview attempt tag.
+- Release write permission exists only in the publish job. The workflow uses
+  GitHub's built-in token; no personal access token or signing secret is needed.
+
+The initial v0.1.0 release uses the already verified artifacts from Actions run
+43631631012 at commit 3397070. No local build is substituted. Future runs use the
+automatic publishing job. Build-tool and Rust inputs are pinned; signing and
+byte-for-byte cross-host reproducibility remain separate qualification work.
 
 Local commands after adding the new repository remote (the application uses `main`; the existing upstream `master` is preserved):
 
 ```sh
 git remote add tonequay https://github.com/lkotlarenko/tonequay.git
 git push -u tonequay HEAD:main
-# After CI and artifact validation:
-git tag v0.1.0
-git push tonequay v0.1.0
+# First bump the app version to 0.1.1 and validate:
+git tag v0.1.1
+git push tonequay v0.1.1
 ```
 
 The original origin remains the upstream emulator until explicitly changed.

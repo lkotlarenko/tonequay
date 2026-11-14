@@ -11,6 +11,8 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -21,6 +23,7 @@ jobs:
           sudo apt-get install -y libasound2-dev libudev-dev libx11-dev libxcursor-dev libxi-dev libxrandr-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev squashfs-tools desktop-file-utils
           rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
       - name: Validate tag and application version
+        id: version
         env:
           RELEASE_REF: ${{ github.ref }}
         run: python3 tools/check_release_version.py
@@ -40,22 +43,48 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 14
-  draft-release:
-    if: startsWith(github.ref, 'refs/tags/v')
+  publish:
     needs: build
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
     permissions:
       contents: write
       actions: read
     steps:
-      - name: Download verified build artifacts and create draft
+      - name: Publish verified build artifacts
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          SOURCE_REF: ${{ github.ref }}
+          COMMIT_SHA: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          APP_VERSION: ${{ needs.build.outputs.version }}
         run: |
           gh run download "$RUN_ID" --name Tonequay-linux-x86_64 --dir dist
           (cd dist && sha256sum --check SHA256SUMS)
-          printf '%s\n' 'Native Linux x86-64 preview. No firmware is bundled.' 'Review compatibility and license notices before publishing.' > release-notes.md
-          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Tonequay $RELEASE_TAG" --notes-file release-notes.md dist/Tonequay-x86_64.AppImage dist/tonequay dist/Tonequay-Licenses.tar.gz dist/SHA256SUMS
+          assets=(dist/Tonequay-x86_64.AppImage dist/tonequay dist/Tonequay-Licenses.tar.gz dist/SHA256SUMS)
+          if [[ "$SOURCE_REF" == refs/tags/v* ]]; then
+            tag="${SOURCE_REF#refs/tags/}"
+            title="Tonequay $tag"
+            flags=(--verify-tag)
+            latest=true
+          else
+            tag="preview-${RUN_ID}-${RUN_ATTEMPT}-${COMMIT_SHA:0:8}"
+            title="Tonequay $APP_VERSION preview (${COMMIT_SHA:0:8})"
+            flags=(--prerelease --latest=false --target "$COMMIT_SHA")
+            latest=false
+          fi
+          printf '%s\n' \
+            "Native Linux x86-64 build from commit $COMMIT_SHA." \
+            "Verified build and test run: https://github.com/$GH_REPO/actions/runs/$RUN_ID" \
+            '' \
+            'No firmware is bundled. Supply a local .fwsc or use the community catalog.' \
+            'For the standalone executable, also download Tonequay-Licenses.tar.gz.' \
+            "Compatibility and known limitations: https://github.com/$GH_REPO/blob/$COMMIT_SHA/docs/FM1_STUDIO_TEST_REPORT.md" \
+            "Credits: https://github.com/$GH_REPO/blob/$COMMIT_SHA/CREDITS.md" \
+            'Physical controller playing and sustained audio qualification remain incomplete.' > release-notes.md
+          # Upload everything into a draft first; publish only after all uploads succeed.
+          gh release create "$tag" --draft --title "$title" --notes-file release-notes.md "${flags[@]}" "${assets[@]}"
+          gh release edit "$tag" --draft=false --latest="$latest"
+          printf 'Published: https://github.com/%s/releases/tag/%s\n' "$GH_REPO" "$tag"
