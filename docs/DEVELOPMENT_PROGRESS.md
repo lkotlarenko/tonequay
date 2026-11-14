@@ -217,3 +217,14 @@ Final release-document housekeeping distinguishes historical Studio 0.4 notes
 from Tonequay 0.1.0 and packages the actual public notes. Artifact upload supports
 workflow reruns; published release assets remain immutable. Automatic preview
 publication is undergoing a live workflow test on this final revision.
+
+
+Automatic publication verified end to end: run 43632835803 at cf1c135 passed the
+build and publish jobs using GitHub's built-in token, creating the public
+prerelease preview-43632835803-1-cf1c135c with all four expected assets. The
+corresponding CI run 43632782869 also passed. GitHub's latest-release endpoint
+still returns v0.1.0, confirming previews do not replace the stable download.
+The published stable SHA256SUMS was downloaded without authentication and matched
+the exact verified Actions manifest. Replaced an earlier in-progress preview test
+with the final revision and canceled the redundant tag build from initial manual
+publication; neither canceled run is reported as a passed test.

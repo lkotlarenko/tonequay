@@ -51,3 +51,13 @@ Inherited upstream release/Pages/catalog workflows were archived under
 `docs/upstream/workflows/` so this fork does not accidentally publish upstream
 plugins, browser builds or mirrored firmware. Their original sources remain
 available for reference.
+
+## Verified publishing run
+
+[Run 43632835803](https://github.com/lkotlarenko/tonequay/actions/runs/43632835803)
+built and publicly published
+[preview-43632835803-1-cf1c135c](https://github.com/lkotlarenko/tonequay/releases/tag/preview-43632835803-1-cf1c135c)
+without manual intervention. It includes all four assets, and v0.1.0 remains
+latest stable. Both the build and privileged publication jobs passed. This
+qualifies manual preview publishing; future version-tag runs use the same upload
+and publish path with tag/version validation and latest-stable promotion.
