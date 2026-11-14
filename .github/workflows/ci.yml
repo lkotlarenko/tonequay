@@ -1,0 +1,38 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libudev-dev libx11-dev libxcursor-dev libxi-dev libxrandr-dev libxkbcommon-dev libwayland-dev libgl1-mesa-dev desktop-file-utils
+      - name: Prepare Rust
+        run: rustup update stable --no-self-update && rustup component add rustfmt clippy --toolchain stable
+      - name: Rust and browser regressions
+        run: make test
+      - name: Validate desktop metadata and scripts
+        run: |
+          desktop-file-validate packaging/studio/tonequay.desktop
+          bash -n tools/build_appimage.sh tools/build_studio_appimage.sh
+          python3 -m py_compile tools/fetch_packaging_tools.py tools/studio_notices.py tools/studio_desktop_smoke.py
+      - name: Release build
+        run: cargo build --release --locked -p tonequay
+      - name: Original-release firmware audio smoke
+        run: python3 tools/firmware_smoke.py
+      - name: Native command smoke
+        run: target/release/tonequay --version

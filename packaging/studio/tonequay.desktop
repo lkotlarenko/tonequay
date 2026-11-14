@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Tonequay
+Comment=Native FM-1 firmware workstation
+Exec=tonequay %f
+Icon=tonequay
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+Keywords=FM-1;MIDI;Synthesizer;Emulator;
+StartupWMClass=tonequay
+MimeType=application/x-fm1-fwsc;

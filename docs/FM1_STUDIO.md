@@ -1,4 +1,4 @@
-# FM-1 Studio
+# Tonequay
 
 Native Linux workstation for the MIT FM-1 emulator. Studio runs the existing CPU,
 JIT and SoC; it does not substitute a software synthesizer. Firmware is supplied
@@ -8,13 +8,13 @@ No firmware, factory bank, proprietary artwork or firmware installer is bundled.
 ## Run
 
 ```sh
-chmod +x dist/FM1-Studio-x86_64.AppImage
-APPIMAGE_EXTRACT_AND_RUN=1 ./dist/FM1-Studio-x86_64.AppImage
+chmod +x dist/Tonequay-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./dist/Tonequay-x86_64.AppImage
 # Or start with a local update package:
-APPIMAGE_EXTRACT_AND_RUN=1 ./dist/FM1-Studio-x86_64.AppImage /absolute/path/Felucca.fwsc
+APPIMAGE_EXTRACT_AND_RUN=1 ./dist/Tonequay-x86_64.AppImage /absolute/path/Felucca.fwsc
 ```
 
-The native executable is `dist/fm1-studio`. `--version`, `--devices` and
+The native executable is `dist/tonequay`. `--version`, `--devices` and
 `--bench PACKAGE.fwsc 5000` work without a graphical window. AppImage systems
 without FUSE can use `--appimage-extract-and-run` or `--appimage-extract` and
 launch `squashfs-root/AppRun`. Running directly from Downloads is supported.
@@ -34,13 +34,13 @@ Ctrl+F focuses library search. Hide Library or Inspector from the header for mor
 instrument space. At narrower sizes the inspector becomes a floating window;
 the instrument can scroll at large accessibility scales.
 
-The application has an original FM-1 Studio icon embedded in its native window
+The application has an original Tonequay icon embedded in its native window
 and supplied as SVG/PNG desktop assets. On Wayland, KDE resolves taskbar icons
 using the desktop entry, rather than an arbitrary window bitmap. Use
 **Preferences → Install desktop launcher & icon**, or:
 
 ```sh
-APPIMAGE_EXTRACT_AND_RUN=1 ./dist/FM1-Studio-x86_64.AppImage --install-desktop
+APPIMAGE_EXTRACT_AND_RUN=1 ./dist/Tonequay-x86_64.AppImage --install-desktop
 ```
 
 This explicit action writes the launcher/icon into your XDG data directory.
@@ -146,7 +146,7 @@ Audio device loss is retried every two seconds. Switching audio device flushes
 the old audio queue. Start with Normal or Stable if low latency starves.
 
 Wayland is preferred where available. X11 fallback uses the host X display; when
-troubleshooting use `env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET ./dist/fm1-studio`.
+troubleshooting use `env -u WAYLAND_DISPLAY -u WAYLAND_SOCKET ./dist/tonequay`.
 Host graphics drivers, GL/EGL/Wayland/X11 libraries, glibc and the ALSA configuration
 remain system components. Do not copy graphics drivers from another distribution.
 The AppImage honors linuxdeploy’s system-library exclusions and uses the host

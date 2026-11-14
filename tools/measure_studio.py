@@ -15,7 +15,7 @@ measurements = []
 for name in ['felucca', 'waveloop', 'amb']:
     package = root / 'reference/firmwares' / (name + '.fwsc')
     for implementation in ['studio', 'live']:
-        command = [str(root / 'target/release' / ('fm1-' + implementation))]
+        command = [str(root / 'target/release' / ('tonequay' if implementation == 'studio' else 'fm1-live'))]
         if implementation == 'studio':
             command += ['--bench', str(package), '5000']
         else:

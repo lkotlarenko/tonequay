@@ -7,7 +7,7 @@ members = [
     "crates/fm1-gdbstub",
     "crates/fm1-emu",
     "crates/fm1-live",
-    "crates/fm1-studio",
+    "crates/tonequay",
     "crates/fm1-web",
 ]
 # the plugin is a workspace of its own (its GUI and plugin dependencies)

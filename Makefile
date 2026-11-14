@@ -1,12 +1,18 @@
 .PHONY: studio studio-release studio-test studio-appimage
 studio:
-	cargo run --locked -p fm1-studio
+	cargo run --locked -p tonequay
 studio-release:
-	cargo build --locked --release -p fm1-studio
+	cargo build --locked --release -p tonequay
 studio-test:
-	cargo fmt -p fm1-studio --check
-	cargo clippy -p fm1-studio --all-targets --no-deps -- -D warnings
+	cargo fmt -p tonequay --check
+	cargo clippy -p tonequay --all-targets --no-deps -- -D warnings
 	cargo test --locked --workspace
 	node --test web/*.test.mjs
 studio-appimage:
-	./tools/build_studio_appimage.sh
+	./tools/build_appimage.sh
+
+.PHONY: run release test appimage
+run: studio
+release: studio-release
+test: studio-test
+appimage: studio-appimage

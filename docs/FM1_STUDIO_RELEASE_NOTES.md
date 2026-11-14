@@ -1,4 +1,4 @@
-# FM-1 Studio 0.4.0 — first native workstation build
+# Tonequay 0.4.0 — first native workstation build
 
 Built on Joakim Eriksson's MIT emulator 0.4.0. Core CPU, instruction decoder and
 JIT remain the existing implementation; the Studio crate adds the workstation.

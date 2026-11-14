@@ -1,8 +1,10 @@
-//! FM-1 Studio: native firmware workstation, using the upstream emulator.
+//! Tonequay: native firmware workstation, using the upstream emulator.
 mod audio;
 mod catalog;
 mod desktop;
+mod firmware_folder;
 mod midi;
+mod panel_input;
 mod persistence;
 mod runtime;
 mod theme;
@@ -12,7 +14,7 @@ fn main() -> eframe::Result<()> {
     if args.get(1).is_some_and(|a| a == "--bench") {
         let result = args
             .get(2)
-            .ok_or("usage: fm1-studio --bench PACKAGE.fwsc [milliseconds]".into())
+            .ok_or("usage: tonequay --bench PACKAGE.fwsc [milliseconds]".into())
             .and_then(|p| {
                 runtime::benchmark(
                     p.into(),
@@ -26,7 +28,7 @@ fn main() -> eframe::Result<()> {
         return Ok(());
     }
     if args.get(1).is_some_and(|a| a == "--version") {
-        println!("FM-1 Studio {}", env!("CARGO_PKG_VERSION"));
+        println!("Tonequay {}", env!("CARGO_PKG_VERSION"));
         return Ok(());
     }
     if args.get(1).is_some_and(|a| a == "--devices") {
@@ -35,6 +37,19 @@ fn main() -> eframe::Result<()> {
             audio::devices(),
             midi::port_names()
         );
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    if args.get(1).is_some_and(|a| a == "--panel-smoke") {
+        let result = if args.len() == 4 {
+            runtime::panel_smoke(args[2].clone().into(), args[3].clone().into())
+        } else {
+            Err("usage: --panel-smoke PACKAGE.fwsc ISOLATED_DATA_DIR".into())
+        };
+        if let Err(e) = result {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
         return Ok(());
     }
     if args.get(1).is_some_and(|a| a == "--runtime-smoke") {
@@ -106,19 +121,25 @@ fn main() -> eframe::Result<()> {
     }
     let initial = args.get(1).map(std::path::PathBuf::from);
     eframe::run_native(
-        "FM-1 Studio",
+        "Tonequay",
         eframe::NativeOptions {
             viewport: eframe::egui::ViewportBuilder::default()
-                .with_inner_size([1460.0, 960.0])
-                .with_min_inner_size([1040.0, 720.0])
-                .with_app_id("com.fm1studio.Studio")
+                .with_inner_size([1360.0, 860.0])
+                .with_min_inner_size([940.0, 640.0])
+                .with_app_id("tonequay")
                 .with_icon(
                     eframe::icon_data::from_png_bytes(include_bytes!(
-                        "../../../packaging/studio/fm1-studio.png"
+                        "../../../packaging/studio/tonequay.png"
                     ))
                     .unwrap_or_default(),
                 ),
             renderer: eframe::Renderer::Glow,
+            persistence_path: Some(
+                persistence::root()
+                    .parent()
+                    .unwrap_or_else(|| std::path::Path::new("."))
+                    .join("com.fm1studio.studio/app.ron"),
+            ),
             ..Default::default()
         },
         Box::new(move |cc| Ok(Box::new(ui::Studio::new(cc, initial)))),

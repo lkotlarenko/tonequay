@@ -1,0 +1,25 @@
+{
+  "attribution": "Metadata adapted from The Firmware Hub catalog, CC BY 4.0, https://thefirmwarehub.com/; snapshot 2026-11-11",
+  "firmwares": [
+    {
+      "id": "waveloop",
+      "version": "1.0.5.2-midi23",
+      "author": "ELI7VH",
+      "lic": "GPL-3.0",
+      "source": "https://github.com/ELI7VH/Felucca/tree/1.0.5.2-midi23",
+      "sha256": "e9529deb7ff626ee64b08fe06a550e39cd2a99c3cc1697bfcb65828f030cf22d",
+      "size": 609849,
+      "url": "https://github.com/ELI7VH/Felucca/releases/download/1.0.5.2-midi23/felucca-1.0.5.2-midi23.fwsc"
+    },
+    {
+      "id": "amb",
+      "version": "1.3.2",
+      "author": "Charles Vestal",
+      "lic": "MPL-2.0",
+      "source": "https://github.com/charlesvestal/fm1-amb/tree/v1.3.2",
+      "sha256": "a949a6a2a1ced8b3857d156ad0409a55e6ba53bbdd4094d0a38f2779364064f3",
+      "size": 614938,
+      "url": "https://github.com/charlesvestal/fm1-amb/releases/download/v1.3.2/amb-1.3.2.fwsc"
+    }
+  ]
+}

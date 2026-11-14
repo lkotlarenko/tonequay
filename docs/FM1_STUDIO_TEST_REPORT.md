@@ -1,4 +1,4 @@
-# FM-1 Studio test and compatibility report
+# Tonequay test and compatibility report
 
 This first working release reuses the upstream 0.4.0 emulator. The outstanding
 items below are explicit qualification limits and deferred features.
@@ -6,9 +6,9 @@ items below are explicit qualification limits and deferred features.
 ## Build and tests
 
 - Upstream baseline: 190 Rust tests passed before implementation.
-- Final workspace: **204 Rust tests passed**, including 12 Studio tests and two
+- Final workspace: **216 Rust tests passed**, including 24 application tests and two
   new malformed/truncated FWSC tests. All six existing web test scripts passed.
-- `cargo fmt -p fm1-studio --check` and Studio Clippy with strict warnings passed.
+- `cargo fmt -p tonequay --check` and Studio Clippy with strict warnings passed.
 - Whole-workspace fmt and strict Clippy were also run; inherited formatting,
   dead-code and new-toolchain lint failures remain in upstream files. No broad
   CPU/CLI rewrite or mass formatting was done to conceal these failures.
@@ -24,6 +24,20 @@ items below are explicit qualification limits and deferred features.
 - Desktop installation tested with isolated XDG data: correct quoted executable,
   icon files and desktop ID. Installed AppImage launchers use extraction mode.
   This host lacks working FUSE; mounted/default FUSE execution is not qualified.
+
+## 2026-11-14 interface and routing revision
+
+The Tonequay rebrand retains all data formats and existing preferences. A native
+Wayland smoke loaded Felucca from the default firmware folder, rendered the new
+icon and layout, connected MIDI/audio and exited successfully. New tests replay
+actual egui pointer dragging to verify appearance controls keep their layout and
+live style unchanged until Apply. Folder-worker tests cover add/remove/configure;
+MIDI tests cover source ownership, sustain, channel precedence and panel routing.
+
+A virtual ALSA sequencer integration smoke exercised panel notes, sustain,
+encoders, master volume and a Home pad, with no held keys after release. The
+headless physical-key path produced 175084 nonzero samples. This is a mock MIDI
+source, not a claim of physical MiniLab playing. See `measurements/panel-mode-smoke.json`.
 
 ## Audio and firmware measurements
 
@@ -101,3 +115,23 @@ are intentionally retained as platform components under linuxdeploy exclusions.
   keyboard navigation and scrollable preferences are implemented.
 - Proprietary M-VAVE packages remain Bring Your Own Firmware. No firmware or
   third-party firmware artwork is distributed in the application.
+
+## Tonequay package verification (2026-11-14)
+
+The branded native executable and AppImage were built successfully. The AppImage
+launched from a temporary working directory under Wayland and X11, loaded local
+Felucca firmware, displayed the watched folder and exited with status 0. Relative
+SHA256SUMS verify both release files. Actionlint 1.7.12 validates the new workflows;
+actual GitHub runner results are separate from this local validation.
+
+Measured ten-second desktop smokes peaked at 170.7 MiB RSS / 39.2% of one CPU core
+for the Wayland AppImage, and 173.8 MiB / 45.9% for X11, including full emulation
+and startup. These short samples are not idle-only or sustained-load guarantees.
+A three-second Felucca headless run measured 2.70× compute speed and first DMA
+audio at 47 ms wall time; this excludes device/physical round-trip latency.
+
+CI pins original WaveLoop and AMB-1 release downloads with sizes and SHA-256.
+The catalog-linked Felucca v1.8.2-beta release returned HTTP 404 during repository
+preparation; its previously verified local fixture remains usable for testing,
+but CI does not claim it can fetch that missing release. No Hub mirror is used.
+New creator releases require deliberate manifest updates and license review.

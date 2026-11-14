@@ -108,3 +108,61 @@ spaces work, and checksums are recorded in dist/SHA256SUMS. Launcher installatio
 was tested in a temporary XDG root, preserving the user's actual desktop settings.
 Source, build tasks, installation/troubleshooting instructions, release notes and
 raw measurements are included. No firmware binaries are tracked or packaged.
+
+## 2026-11-14 — interaction, MIDI-panel and local-folder revision
+
+User reported accessibility sizing jitter and requested a cleaner interface,
+physical FM-1 panel routing from MIDI, and a configurable persistent firmware
+folder. Implemented draft/apply appearance editing (including a multi-frame egui
+pointer-drag regression), a compact toolbar and tabbed controls, finite-width
+instrument layout, focusable fine-grained encoders, and virtualized library rows.
+Library rendering no longer scans the filesystem or clones the full catalog.
+
+Added explicit Firmware MIDI / FM-1 panel modes. Panel mode converts notes into
+velocity-sensitive matrix keys, pad notes into buttons, standard MiniLab CCs into
+encoders/master, and supports sustain/pressure/clock. Explicit Learn assignments
+override presets. Guest note duplication is prevented. Input ownership merges
+keyboard/mouse, timed taps and MIDI holds, so releasing one source cannot cut off
+another. Configuration changes serialize panic with MIDI event delivery.
+Fixed the previous u16 overflow in master CC scaling and stale queued LCD frames.
+Device enumeration is now asynchronous and MIDI shutdown no longer waits on a
+polling sleep. A latest-value display mailbox avoids stale frame backlog.
+
+A configurable, non-recursive firmware folder is scanned on a dedicated worker.
+New/removed .fwsc files appear automatically; scans do not execute files, follow
+symlinks or reload a live firmware. Default: the data directory's firmwares/
+subdirectory. Folder selection persists; local list and search are integrated.
+
+24 Studio tests and strict scoped Clippy pass at this checkpoint. Full workspace,
+native GUI and virtual-ALSA/CPAL integration checks are in progress. Rebrand and
+professional GitHub/release preparation are queued after native validation, as
+requested; no new remote has been selected or pushed.
+
+
+## 2026-11-14 — Tonequay rebrand and repository preparation
+
+Completed the interface/panel/folder revision: 216 workspace Rust tests and six
+web regressions pass, application formatting and strict Clippy pass. Native
+Wayland and virtual ALSA/CPAL panel smoke checks passed. Physical playing and
+unplug/replug testing remain unverified. Accessibility draft editing has a real
+egui input regression test, and the firmware folder is visible in the native UI.
+
+Rebranded the app/package/executable to Tonequay 0.1.0; upstream engine versions,
+MIT attribution, data paths, preferences and native save identity remain intact.
+Added an original waveform/Q icon, desktop identity, project README, user/build/
+release guides, credits, contribution/security/support policies, templates and
+Dependabot. The user created https://github.com/lkotlarenko/tonequay; its existing
+branch will be inspected before any push. The upstream remote is preserved.
+
+Archived inherited plugin/browser/catalog workflows rather than running them in
+the desktop fork. New CI scopes strict app lints while testing the workspace.
+Tagged AppImage automation prepares draft releases, uses least-privilege tokens,
+SHA-pinned actions and digest/size-pinned official packaging tools. CI runner and
+older-glibc compatibility remain unverified until an actual runner completes.
+Final branded packaging succeeded. The AppImage passed outside-tree Wayland and
+X11 smokes (exit 0), and relative checksums verify the native and AppImage files.
+Actionlint validates both workflows; pinned WaveLoop/AMB-1 guest-note smokes pass.
+The original Felucca catalog release now returns 404, so that CI fixture is not
+silently substituted from a mirror. Cached local Felucca tests remain valid.
+The new remote contains an upstream master branch; publishing uses a separate
+main branch to preserve it. No version tag or public release is created yet.

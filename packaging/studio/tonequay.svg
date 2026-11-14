@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<title>Tonequay</title><desc>A rose waveform inside a charcoal Q-shaped instrument dial.</desc>
+<rect x="8" y="8" width="240" height="240" rx="60" fill="#191b23"/>
+<circle cx="124" cy="120" r="73" fill="none" stroke="#ef82ad" stroke-width="17"/>
+<path d="m170 172 32 32" stroke="#ef82ad" stroke-width="19" stroke-linecap="round"/>
+<path d="M78 122h17l12-29 20 57 16-40 10 12h18" fill="none" stroke="#f2eaf0" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

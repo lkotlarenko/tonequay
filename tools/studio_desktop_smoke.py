@@ -6,6 +6,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
+import shutil
 import time
 
 binary = pathlib.Path(sys.argv[1]).resolve()
@@ -31,6 +32,10 @@ with tempfile.TemporaryDirectory(prefix='fm1-studio-smoke-') as tmp:
         dest.mkdir(parents=True)
         (dest / 'catalog.json').write_bytes(catalog.read_bytes())
         (dest / 'catalog-attempt').write_text(str(int(time.time())))
+    if package:
+        local = pathlib.Path(tmp) / 'data/fm1-studio/firmwares'
+        local.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(package, local / package.name)
     command = [str(binary)] + ([str(package)] if package else [])
     with (report_dir / ('desktop-' + label + '.log')).open('w') as log:
         start = time.monotonic()

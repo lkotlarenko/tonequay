@@ -18,6 +18,7 @@ pub struct Machine {
     cpu1: Option<Cpu>,
     pending: bool,
     notes: crate::midi::Notes,
+    keys: crate::panel_input::Keys,
 }
 impl Machine {
     pub fn boot(pkg: &[u8]) -> Result<Self, String> {
@@ -45,9 +46,22 @@ impl Machine {
             cpu1: None,
             pending: false,
             notes: Default::default(),
+            keys: Default::default(),
         })
     }
+    fn input(&mut self, a: Action, source: crate::panel_input::Source) {
+        if let Action::Key { id, down } = a {
+            if let Some(action) = self.keys.set(source, id, down, self.soc.periph.ms()) {
+                self.soc.periph.apply(&action);
+            }
+        } else {
+            self.soc.periph.apply(&a);
+        }
+    }
     pub fn run(&mut self) -> Result<(), String> {
+        for a in self.keys.expire(self.soc.periph.ms()) {
+            self.soc.periph.apply(&a);
+        }
         machine::run_dual(
             &mut self.cpu1,
             &mut self.soc,
@@ -58,6 +72,7 @@ impl Machine {
         )
     }
     pub fn panic(&mut self) {
+        self.keys = Default::default();
         for b in self.notes.release() {
             self.soc.periph.apply(&Action::Midi { b });
         }
@@ -120,9 +135,25 @@ pub struct View {
     pub boot_ms: u128,
     pub callback_frames: u64,
 }
+#[derive(Clone, Default)]
+pub struct ViewMailbox(Arc<std::sync::Mutex<Option<View>>>);
+impl ViewMailbox {
+    pub fn try_recv(&self) -> Result<View, mpsc::TryRecvError> {
+        self.0
+            .try_lock()
+            .ok()
+            .and_then(|mut v| v.take())
+            .ok_or(mpsc::TryRecvError::Empty)
+    }
+    fn publish(&self, view: View) {
+        if let Ok(mut v) = self.0.try_lock() {
+            *v = Some(view);
+        }
+    }
+}
 pub struct Runtime {
     pub tx: SyncSender<Command>,
-    pub rx: Receiver<View>,
+    pub rx: ViewMailbox,
     pub notices: Receiver<String>,
     pub urgent: Arc<AtomicBool>,
     quit: Arc<AtomicBool>,
@@ -131,7 +162,8 @@ pub struct Runtime {
 impl Runtime {
     pub fn new(root: PathBuf, ctx: eframe::egui::Context) -> Self {
         let (tx, rx) = mpsc::sync_channel(1024);
-        let (views, viewrx) = mpsc::sync_channel(2);
+        let views = ViewMailbox::default();
+        let viewrx = views.clone();
         let (notices, notice_rx) = mpsc::sync_channel(16);
         let quit = Arc::new(AtomicBool::new(false));
         let q = quit.clone();
@@ -174,7 +206,7 @@ struct Session {
 fn worker(
     root: PathBuf,
     rx: Receiver<Command>,
-    views: SyncSender<View>,
+    views: ViewMailbox,
     notices: SyncSender<String>,
     quit: Arc<AtomicBool>,
     urgent: Arc<AtomicBool>,
@@ -211,7 +243,11 @@ fn worker(
                     Command::Load(path) => {
                         let boot = Instant::now();
                         let pkg = persistence::read_bounded(&path, persistence::MAX_PACKAGE)?;
-                        if path.extension().is_none_or(|e| e != "fwsc") {
+                        if !path
+                            .extension()
+                            .and_then(|e| e.to_str())
+                            .is_some_and(|e| e.eq_ignore_ascii_case("fwsc"))
+                        {
                             return Err("select a .fwsc update package".into());
                         }
                         let hash = persistence::identity(&pkg);
@@ -249,6 +285,10 @@ fn worker(
                             boot,
                             boot_ms: 0,
                         });
+                        last_pixels.clear();
+                        last_leds = [false; 41];
+                        speed = 0.0;
+                        headroom = 0.0;
                         last_ms = 0;
                         stat = Instant::now();
                         busy = Duration::ZERO;
@@ -262,30 +302,14 @@ fn worker(
                     }
                     Command::Tap(id) => {
                         if let Some(s) = session.as_mut() {
-                            if id < 41 {
-                                s.machine.soc.periph.apply(&Action::Key { id, down: true });
-                                let at = s
-                                    .machine
-                                    .soc
-                                    .periph
-                                    .cycle_of_ms(s.machine.soc.periph.ms() + 80);
-                                s.machine
-                                    .soc
-                                    .periph
-                                    .script
-                                    .push_back((at, Action::Key { id, down: false }));
-                                s.machine
-                                    .soc
-                                    .periph
-                                    .script
-                                    .make_contiguous()
-                                    .sort_by_key(|(at, _)| *at);
+                            if let Some(a) = s.machine.keys.tap(id, s.machine.soc.periph.ms()) {
+                                s.machine.soc.periph.apply(&a);
                             }
                         }
                     }
                     Command::Action(a) => {
                         if let Some(s) = &mut session {
-                            s.machine.soc.periph.apply(&a);
+                            s.machine.input(a, crate::panel_input::Source::Ui);
                         }
                     }
                     Command::Events {
@@ -296,7 +320,7 @@ fn worker(
                         let _timestamp = timestamp; // FIFO retains the MIDI port timestamp order.
                         if let Some(s) = &mut session {
                             for a in host {
-                                s.machine.soc.periph.apply(&a);
+                                s.machine.input(a, crate::panel_input::Source::Midi);
                             }
                         }
                         if let Some(s) = &mut session {
@@ -427,6 +451,22 @@ fn worker(
                 stream = None;
                 producer = None;
                 let _ = persistence::save(&s.save, &s.machine.soc.flash.mem);
+                views.publish(View {
+                    lcd: s.machine.soc.lcd.fb.clone(),
+                    leds: s.machine.soc.periph.led_take(),
+                    ms: s.machine.soc.periph.ms(),
+                    speed: 0.0,
+                    headroom: 0.0,
+                    queued_ms: 0.0,
+                    missing: stats.missing.load(Ordering::Relaxed),
+                    audio: false,
+                    name: s.name.clone(),
+                    hash: s.hash.clone(),
+                    error: error.clone(),
+                    boot_ms: s.boot_ms,
+                    callback_frames: stats.max_block.load(Ordering::Relaxed),
+                });
+                ctx.request_repaint();
                 session = None;
                 continue;
             }
@@ -507,22 +547,22 @@ fn worker(
             let changed = last_pixels != s.machine.soc.lcd.fb || last_leds != lights;
             last_pixels.clone_from(&s.machine.soc.lcd.fb);
             last_leds = lights;
-            let _ = views.try_send(View {
-                lcd: s.machine.soc.lcd.fb.clone(),
-                leds,
-                ms: s.machine.soc.periph.ms(),
-                speed,
-                headroom,
-                queued_ms,
-                missing: stats.missing.load(Ordering::Relaxed),
-                audio: stream.is_some(),
-                name: s.name.clone(),
-                hash: s.hash.clone(),
-                error: error.clone(),
-                boot_ms: s.boot_ms,
-                callback_frames: stats.max_block.load(Ordering::Relaxed),
-            });
             if changed || repaint_at.elapsed() > Duration::from_secs(1) {
+                views.publish(View {
+                    lcd: s.machine.soc.lcd.fb.clone(),
+                    leds,
+                    ms: s.machine.soc.periph.ms(),
+                    speed,
+                    headroom,
+                    queued_ms,
+                    missing: stats.missing.load(Ordering::Relaxed),
+                    audio: stream.is_some(),
+                    name: s.name.clone(),
+                    hash: s.hash.clone(),
+                    error: error.clone(),
+                    boot_ms: s.boot_ms,
+                    callback_frames: stats.max_block.load(Ordering::Relaxed),
+                });
                 ctx.request_repaint();
                 repaint_at = Instant::now();
             }
@@ -642,6 +682,131 @@ pub fn smoke(first: PathBuf, second: PathBuf, root: PathBuf) -> Result<(), Strin
     );
     if !result {
         return Err("runtime lifecycle smoke failed".into());
+    }
+    Ok(())
+}
+
+/// Real ALSA virtual input → panel router → runtime/CPAL, plus a headless
+/// firmware audio run using the same host-key path. No physical controller writes.
+#[cfg(target_os = "linux")]
+pub fn panel_smoke(package: PathBuf, root: PathBuf) -> Result<(), String> {
+    use midir::os::unix::VirtualOutput;
+    let output = midir::MidiOutput::new("FM1 Studio panel test").map_err(|e| e.to_string())?;
+    let mut cable = output
+        .create_virtual("Panel test source")
+        .map_err(|e| e.to_string())?;
+    let name = crate::midi::port_names()
+        .into_iter()
+        .find(|n| n.contains("FM1 Studio panel test") && n.contains("Panel test source"))
+        .ok_or("virtual ALSA test port not found")?;
+    let ctx = eframe::egui::Context::default();
+    let runtime = Runtime::new(root, ctx.clone());
+    runtime.send(Command::Load(package.clone()))?;
+    let router = crate::midi::Router::with_mode(crate::midi::RoutingMode::Panel);
+    let input = crate::midi::Input::new(
+        name,
+        router,
+        runtime.tx.clone(),
+        runtime.urgent.clone(),
+        ctx,
+    );
+    let connected = input
+        .status
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|e| e.to_string())?;
+    if !connected.starts_with("Connected:") {
+        return Err(connected);
+    }
+    let start = Instant::now();
+    let mut audio = false;
+    while start.elapsed() < Duration::from_secs(2) {
+        while let Ok(v) = runtime.rx.try_recv() {
+            audio |= v.audio && v.boot_ms > 0;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let mut observations = Vec::new();
+    let mut event = |bytes: &[u8]| -> Result<crate::midi::Event, String> {
+        cable.send(bytes).map_err(|e| e.to_string())?;
+        let start = Instant::now();
+        loop {
+            let value = input
+                .rx
+                .recv_timeout(Duration::from_secs(2))
+                .map_err(|e| e.to_string())?;
+            if value.bytes == bytes {
+                observations.push(serde_json::json!({"bytes":bytes,"panel_keys":value.panel_keys,"encoders":value.encoders,"master":value.master}));
+                return Ok(value);
+            }
+            if start.elapsed() > Duration::from_secs(3) {
+                return Err("virtual MIDI feedback timed out".into());
+            }
+        }
+    };
+    if event(&[0x90, 60, 100])?.panel_keys & (1 << 21) == 0 {
+        return Err("MIDI did not press matrix C4".into());
+    }
+    std::thread::sleep(Duration::from_millis(150));
+    event(&[0xb0, 74, 64])?;
+    if event(&[0xb0, 74, 70])?.encoders[2] != 6 {
+        return Err("MIDI encoder did not turn Knob 1".into());
+    }
+    if event(&[0xb0, 82, 127])?.master != Some(1023) {
+        return Err("MIDI master scaling failed".into());
+    }
+    event(&[0xb0, 64, 127])?;
+    if event(&[0x80, 60, 0])?.panel_keys & (1 << 21) == 0 {
+        return Err("sustain released matrix key too early".into());
+    }
+    if event(&[0xb0, 64, 0])?.panel_keys != 0 {
+        return Err("pedal release left keys held".into());
+    }
+    if event(&[0x99, 38, 100])?.panel_keys != (1 << 8) {
+        return Err("pad did not press Home".into());
+    }
+    if event(&[0x89, 38, 0])?.panel_keys != 0 {
+        return Err("pad release left Home held".into());
+    }
+    input.reset();
+    runtime.send(Command::Panic)?;
+    drop(input);
+    drop(cable);
+    drop(runtime);
+    let pkg = persistence::read_bounded(&package, persistence::MAX_PACKAGE)?;
+    let mut machine = Machine::boot(&pkg)?;
+    let mut router = crate::midi::Router::with_mode(crate::midi::RoutingMode::Panel);
+    let mut stage = 0;
+    let mut nonzero = 0;
+    while machine.soc.periph.ms() < 3000 {
+        let now = machine.soc.periph.ms();
+        let message = match stage {
+            0 if now >= 1000 => Some([0x90, 60, 100]),
+            1 if now >= 1200 => Some([0x90, 64, 100]),
+            2 if now >= 1800 => Some([0x80, 60, 0]),
+            3 if now >= 2000 => Some([0x80, 64, 0]),
+            _ => None,
+        };
+        if let Some(bytes) = message {
+            let (host, guest) = router.route(&bytes);
+            if !guest.is_empty() {
+                return Err("panel mode leaked guest MIDI notes".into());
+            }
+            for action in host {
+                machine.input(action, crate::panel_input::Source::Midi);
+            }
+            stage += 1;
+        }
+        machine.run()?;
+        nonzero += machine.soc.periph.audio.iter().filter(|&&s| s != 0).count();
+        machine.soc.periph.audio.clear();
+    }
+    let passed = audio && stage == 4 && nonzero > 0 && router.key_mask() == 0;
+    println!(
+        "{}",
+        serde_json::json!({"passed":passed,"audio_ready":audio,"virtual_input":connected,"observations":observations,"headless_panel_nonzero_samples":nonzero,"no_held_keys":router.key_mask()==0})
+    );
+    if !passed {
+        return Err("panel-mode integration smoke failed".into());
     }
     Ok(())
 }

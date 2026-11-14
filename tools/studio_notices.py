@@ -13,7 +13,7 @@ metadata = json.loads(subprocess.check_output([
 ]))
 packages = {p['id']: p for p in metadata['packages']}
 nodes = {n['id']: n for n in metadata['resolve']['nodes']}
-root = next(p['id'] for p in packages.values() if p['name'] == 'fm1-studio')
+root = next(p['id'] for p in packages.values() if p['name'] == 'tonequay')
 visited = set()
 def visit(key):
     if key in visited:

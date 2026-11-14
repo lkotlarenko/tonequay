@@ -1,0 +1,23 @@
+{
+  "linuxdeploy": {
+    "url": "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage",
+    "sha256": "df908b19f1ed1cdafa79508d415aa12d6c56ce4d56d4149aa8c09286718706e5",
+    "size": 19855864,
+    "release": "https://github.com/linuxdeploy/linuxdeploy/releases/tag/continuous",
+    "asset_id": 699514588
+  },
+  "appimagetool": {
+    "url": "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage",
+    "sha256": "e8c1169c4af66c3184d7ee110713d4be04befe671fa358e2c1591ee840553b03",
+    "size": 15133176,
+    "release": "https://github.com/AppImage/appimagetool/releases/tag/continuous",
+    "asset_id": 715388534
+  },
+  "runtime-x86_64": {
+    "url": "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64",
+    "sha256": "617aa77314d57c8b8e4fae9c3f0b35af7b30d5529cb69e98f64f92510ed98a46",
+    "size": 944632,
+    "release": "https://github.com/AppImage/type2-runtime/releases/tag/continuous",
+    "asset_id": 657374641
+  }
+}

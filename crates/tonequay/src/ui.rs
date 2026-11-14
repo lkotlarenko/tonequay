@@ -30,6 +30,8 @@ struct Settings {
     accessibility: crate::theme::Accessibility,
     library: Option<bool>,
     buffer_ms: Option<u32>,
+    layout_version: u8,
+    firmware_folder: Option<PathBuf>,
 }
 pub struct Studio {
     runtime: runtime::Runtime,
@@ -55,6 +57,7 @@ pub struct Studio {
     held: [bool; 41],
     mouse_held: [bool; 41],
     keyboard_held: [bool; 41],
+    keyboard_blocked: u64,
     master: u16,
     right: bool,
     confirm_reset: bool,
@@ -65,12 +68,28 @@ pub struct Studio {
     show_preferences: bool,
     show_library: bool,
     logo: egui::TextureHandle,
+    appearance_draft: Option<preferences::AppearanceDraft>,
+    routing_revision: u64,
+    midi_held: u64,
+    inspector_page: u8,
+    knob_drag: [f32; 7],
+    knob_turn: [f32; 7],
+    cached_packages: std::collections::HashSet<PathBuf>,
+    library_search: Vec<String>,
+    library_matches: Vec<usize>,
+    library_filter: u64,
+    catalog_revision: u64,
+    device_scan: Option<Receiver<(Vec<String>, Vec<String>)>>,
+    folder: crate::firmware_folder::Folder,
+    folder_snapshot: crate::firmware_folder::Snapshot,
+    local_matches: Vec<usize>,
 }
 enum Dialog {
     Open(PathBuf),
     Export(PathBuf),
     Import(PathBuf),
-    Mappings(midi::Router),
+    Mappings(Box<midi::Router>),
+    Folder(PathBuf),
     Message(String),
 }
 impl Studio {
@@ -79,13 +98,18 @@ impl Studio {
             .storage
             .and_then(|s| eframe::get_value(s, "studio"))
             .unwrap_or_default();
+        settings.accessibility.sanitize();
+        if settings.layout_version < 2 {
+            settings.right = Some(false);
+            settings.layout_version = 2;
+        }
         crate::theme::apply(&cc.egui_ctx, settings.light, &settings.accessibility);
         let icon = eframe::icon_data::from_png_bytes(include_bytes!(
-            "../../../packaging/studio/fm1-studio.png"
+            "../../../packaging/studio/tonequay.png"
         ))
         .unwrap_or_default();
         let logo = cc.egui_ctx.load_texture(
-            "FM-1 Studio brand",
+            "Tonequay brand",
             egui::ColorImage::from_rgba_unmultiplied(
                 [icon.width as usize, icon.height as usize],
                 &icon.rgba,
@@ -102,6 +126,20 @@ impl Studio {
             settings.recent.insert(0, p.clone());
             settings.recent.truncate(12);
         }
+        let cached_packages = std::fs::read_dir(root.join("packages"))
+            .map(|r| r.filter_map(Result::ok).map(|e| e.path()).collect())
+            .unwrap_or_default();
+        let library_search = catalog
+            .firmwares
+            .iter()
+            .map(|e| format!("{} {} {}", e.name, e.author, e.what).to_lowercase())
+            .collect();
+        let folder_path = settings
+            .firmware_folder
+            .clone()
+            .unwrap_or_else(|| root.join("firmwares"));
+        let folder = crate::firmware_folder::Folder::new(folder_path.clone(), cc.egui_ctx.clone());
+        let folder_snapshot = crate::firmware_folder::Snapshot::empty(folder_path);
         let runtime = runtime::Runtime::new(root.clone(), cc.egui_ctx.clone());
         let buffer_ms = settings.buffer_ms.unwrap_or(50).clamp(10, 100);
         let _ = runtime.send(Command::Audio(settings.device.clone(), buffer_ms));
@@ -110,9 +148,10 @@ impl Studio {
         }
         let mut router = settings.mappings.as_str().pipe_parse().unwrap_or_default();
         router.channel = settings.channel;
-        let right = settings.right.unwrap_or(true);
+        let routing_revision = router.config_hash();
+        let right = settings.right.unwrap_or(false);
         let show_library = settings.library.unwrap_or(true);
-        Self {
+        let mut app = Self {
             input: midi::Input::new(
                 settings.port.clone(),
                 router.clone(),
@@ -133,8 +172,8 @@ impl Studio {
             router,
             job: None,
             message: "Import a local .fwsc, or refresh the Firmware Hub catalog.".into(),
-            ports: midi::port_names(),
-            devices: crate::audio::devices(),
+            ports: vec![],
+            devices: vec![],
             dialog: None,
             inspector: Default::default(),
             last_midi: Instant::now() - Duration::from_secs(60),
@@ -142,6 +181,7 @@ impl Studio {
             held: [false; 41],
             mouse_held: [false; 41],
             keyboard_held: [false; 41],
+            keyboard_blocked: 0,
             master: 1023,
             right,
             confirm_reset: false,
@@ -152,9 +192,56 @@ impl Studio {
             show_preferences: std::env::var_os("FM1_STUDIO_PREFERENCES").is_some(),
             logo,
             show_library,
+            appearance_draft: None,
+            routing_revision,
+            midi_held: 0,
+            inspector_page: 0,
+            knob_drag: [0.0; 7],
+            knob_turn: [0.0; 7],
+            cached_packages,
+            library_search,
+            library_matches: vec![],
+            library_filter: u64::MAX,
+            catalog_revision: 0,
+            device_scan: None,
+            folder,
+            folder_snapshot,
+            local_matches: vec![],
+        };
+        app.rescan_devices(&cc.egui_ctx);
+        app
+    }
+    fn rescan_devices(&mut self, ctx: &egui::Context) {
+        if self.device_scan.is_some() {
+            return;
         }
+        let (tx, rx) = mpsc::channel();
+        self.device_scan = Some(rx);
+        let ctx = ctx.clone();
+        std::thread::spawn(move || {
+            let result = (midi::port_names(), crate::audio::devices());
+            let _ = tx.send(result);
+            ctx.request_repaint();
+        });
+    }
+    fn block_keyboard_holds(&mut self) {
+        for (id, &down) in self.keyboard_held.iter().enumerate() {
+            if down {
+                self.keyboard_blocked |= 1 << id;
+            }
+        }
+        self.held = [false; 41];
+        self.keyboard_held = [false; 41];
+        self.mouse_held = [false; 41];
+        self.midi_held = 0;
     }
     fn send(&mut self, c: Command) {
+        if matches!(&c, Command::Panic) {
+            self.block_keyboard_holds();
+            self.router.clear();
+            self.input.reset();
+            self.midi_held = 0;
+        }
         if let Err(e) = self.runtime.send(c) {
             self.message = e;
         }
@@ -165,15 +252,27 @@ impl Studio {
         self.mouse_held = [false; 41];
         self.keyboard_held = [false; 41];
         self.router.clear();
-        if let Ok(mut r) = self.input.router.lock() {
-            *r = self.router.clone();
-        }
+        let _ = self.input.configure(self.router.clone());
         while self.input.rx.try_recv().is_ok() {}
         self.send(Command::Load(p.clone()));
         self.message = "Booting firmware…".into();
         self.settings.recent.retain(|s| s != &p);
         self.settings.recent.insert(0, p);
         self.settings.recent.truncate(12);
+    }
+    fn firmware_title(&self) -> &str {
+        if let Some(v) = &self.view {
+            if let Some(e) = self
+                .catalog
+                .firmwares
+                .iter()
+                .find(|e| e.sha256.as_deref() == Some(v.hash.as_str()))
+            {
+                return &e.name;
+            }
+            return v.name.strip_suffix(".fwsc").unwrap_or(&v.name);
+        }
+        "No firmware loaded"
     }
     fn dialog(&mut self, kind: u8) {
         if self.dialog.is_some() {
@@ -182,6 +281,7 @@ impl Studio {
         let (tx, rx) = mpsc::channel();
         self.dialog = Some(rx);
         let mappings = serde_json::to_vec_pretty(&self.router).unwrap_or_default();
+        let folder_path = self.folder_snapshot.root.clone();
         std::thread::spawn(move || {
             let result = match kind {
                 0 => rfd::FileDialog::new()
@@ -205,6 +305,11 @@ impl Studio {
                             Err(e) => e,
                         })
                     }),
+                5 => rfd::FileDialog::new()
+                    .set_title("Choose firmware folder")
+                    .set_directory(folder_path)
+                    .pick_folder()
+                    .map(Dialog::Folder),
                 _ => rfd::FileDialog::new()
                     .add_filter("Mappings", &["json"])
                     .pick_file()
@@ -212,7 +317,7 @@ impl Studio {
                         match persistence::read_bounded(&p, 1024 * 1024)
                             .and_then(|b| serde_json::from_slice(&b).map_err(|e| e.to_string()))
                         {
-                            Ok(r) => Dialog::Mappings(r),
+                            Ok(r) => Dialog::Mappings(Box::new(r)),
                             Err(e) => Dialog::Message(e),
                         }
                     }),
@@ -223,6 +328,24 @@ impl Studio {
         });
     }
     fn poll(&mut self, ctx: &egui::Context) {
+        if let Some(snapshot) = self.folder.take() {
+            if let Some(e) = &snapshot.error {
+                self.message = e.clone();
+            }
+            self.folder_snapshot = snapshot;
+            self.catalog_revision += 1;
+        }
+        if let Some(rx) = &self.device_scan {
+            match rx.try_recv() {
+                Ok((ports, devices)) => {
+                    self.ports = ports;
+                    self.devices = devices;
+                    self.device_scan = None;
+                }
+                Err(mpsc::TryRecvError::Disconnected) => self.device_scan = None,
+                Err(_) => {}
+            }
+        }
         while let Ok(message) = self.runtime.notices.try_recv() {
             self.message = message;
         }
@@ -235,9 +358,7 @@ impl Studio {
                     .and_then(|s| serde_json::from_str::<midi::Router>(s).ok())
                 {
                     self.router = profile;
-                    if let Ok(mut r) = self.input.router.lock() {
-                        *r = self.router.clone();
-                    }
+                    self.routing_revision = u64::MAX;
                 }
             }
             if self.view.as_ref().is_none_or(|old| old.hash != v.hash) {
@@ -278,6 +399,14 @@ impl Studio {
                 continue;
             }
             self.last_midi = Instant::now();
+            self.midi_held = event.panel_keys;
+            for (i, steps) in event.encoders.iter().enumerate() {
+                self.knob_turn[i] =
+                    (self.knob_turn[i] + f32::from(*steps) * 0.13) % std::f32::consts::TAU;
+            }
+            if let Some(value) = event.master {
+                self.master = value;
+            }
             self.inspector
                 .push_front(format!("{} μs  {:02X?}", event.timestamp, event.bytes));
             self.inspector.truncate(24);
@@ -298,6 +427,9 @@ impl Studio {
             self.message = "MIDI queue overflow; panic sent".into();
         }
         while let Ok(s) = self.input.status.try_recv() {
+            if s.starts_with("Disconnected") {
+                self.midi_held = 0;
+            }
             self.midi_status = s;
         }
         let updates: Vec<_> = self
@@ -311,10 +443,18 @@ impl Studio {
                 Update::Progress(p) => self.message = p,
                 Update::Catalog(c) => {
                     self.catalog = c;
+                    self.catalog_revision += 1;
+                    self.library_search = self
+                        .catalog
+                        .firmwares
+                        .iter()
+                        .map(|e| format!("{} {} {}", e.name, e.author, e.what).to_lowercase())
+                        .collect();
                     self.message = "Catalog cached for offline use".into();
                     done = true;
                 }
                 Update::Downloaded(p) => {
+                    self.cached_packages.insert(p.clone());
                     self.load(p);
                     done = true;
                 }
@@ -335,8 +475,13 @@ impl Studio {
                         Dialog::Open(p) => self.load(p),
                         Dialog::Export(p) => self.send(Command::Export(p)),
                         Dialog::Import(p) => self.send(Command::Import(p)),
+                        Dialog::Folder(path) => {
+                            self.settings.firmware_folder = Some(path.clone());
+                            self.folder.set_path(path);
+                            self.message = "Scanning firmware folder…".into();
+                        }
                         Dialog::Mappings(r) => {
-                            self.router = r;
+                            self.router = *r;
                             self.message = "Mappings imported".into();
                         }
                         Dialog::Message(s) => self.message = s,
@@ -410,8 +555,6 @@ impl eframe::App for Studio {
             }
         }
 
-        let before = serde_json::to_string(&self.router).unwrap_or_default();
-        let learn_before = self.router.learn;
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::F10)) {
             self.show_preferences = !self.show_preferences;
         }
@@ -421,27 +564,57 @@ impl eframe::App for Studio {
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::F)) {
             ctx.memory_mut(|m| m.request_focus(egui::Id::new("firmware_search")));
         }
+        let compact = ctx.content_rect().width() < 1100.0;
+        let library_visible = self.show_library && (!self.right || !compact);
         egui::TopBottomPanel::top("header")
             .frame(
                 egui::Frame::new()
                     .fill(ctx.style().visuals.panel_fill)
-                    .inner_margin(egui::Margin::symmetric(18, 12)),
+                    .inner_margin(egui::Margin::symmetric(16, 10)),
             )
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    ui.add(egui::Image::new(&self.logo).fit_to_exact_size(egui::vec2(46.0, 46.0)));
-                    ui.vertical(|ui| {
-                        ui.label(RichText::new("FM-1 Studio").strong().size(24.0));
-                        ui.label(
-                            RichText::new("Your firmware. Your instrument.")
-                                .size(13.0)
-                                .color(crate::theme::muted(ui)),
-                        );
-                    });
+                ui.horizontal_wrapped(|ui| {
+                    ui.add(egui::Image::new(&self.logo).fit_to_exact_size(egui::vec2(30.0, 30.0)));
+                    ui.label(RichText::new("Tonequay").strong().size(18.0));
+                    ui.add_space(10.0);
+                    if ui.selectable_label(library_visible, "Library").clicked() {
+                        self.show_library = !library_visible;
+                        if compact && self.show_library {
+                            self.right = false;
+                        }
+                    }
+                    if ui.selectable_label(self.right, "Controls").clicked() {
+                        self.right = !self.right;
+                    }
+                    ui.separator();
+                    egui::ComboBox::from_id_salt("quick_midi_mode")
+                        .selected_text(match self.router.routing_mode {
+                            midi::RoutingMode::Guest => "MIDI · Firmware",
+                            midi::RoutingMode::Panel => "MIDI · FM-1 panel",
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut self.router.routing_mode,
+                                midi::RoutingMode::Guest,
+                                "Firmware MIDI",
+                            );
+                            ui.selectable_value(
+                                &mut self.router.routing_mode,
+                                midi::RoutingMode::Panel,
+                                "FM-1 panel controls",
+                            );
+                        });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         if ui
-                            .button("Panic")
-                            .on_hover_text("Release all held notes, sustain and panel keys")
+                            .button("Settings")
+                            .on_hover_text("Appearance & accessibility · F10")
+                            .clicked()
+                        {
+                            self.show_preferences = true;
+                        }
+                        if ui
+                            .add(egui::Button::new("Panic").frame(false))
+                            .on_hover_text("Release all notes, panel keys and sustain")
                             .clicked()
                         {
                             self.send(Command::Panic);
@@ -449,15 +622,6 @@ impl eframe::App for Studio {
                             self.mouse_held = [false; 41];
                             self.keyboard_held = [false; 41];
                         }
-                        if ui
-                            .button("Preferences")
-                            .on_hover_text("Appearance, font size and accessibility · F10")
-                            .clicked()
-                        {
-                            self.show_preferences = true;
-                        }
-                        ui.toggle_value(&mut self.right, "Inspector");
-                        ui.toggle_value(&mut self.show_library, "Library");
                     });
                 });
             });
@@ -465,82 +629,103 @@ impl eframe::App for Studio {
             .frame(
                 egui::Frame::new()
                     .fill(ctx.style().visuals.panel_fill)
-                    .inner_margin(egui::Margin::symmetric(18, 9)),
+                    .inner_margin(egui::Margin::symmetric(16, 8)),
             )
             .show(ctx, |ui| {
-                ui.horizontal_wrapped(|ui| {
+                ui.horizontal(|ui| {
+                    let title = self.firmware_title().to_owned();
+                    ui.add(egui::Label::new(RichText::new(title).small()).truncate());
                     if let Some(v) = &self.view {
-                        ui.label(RichText::new(&v.name).strong());
                         ui.separator();
-                        ui.colored_label(
-                            if v.audio {
-                                Color32::from_rgb(130, 218, 183)
-                            } else {
-                                Color32::from_rgb(247, 181, 123)
-                            },
-                            if v.audio {
-                                "Audio ready"
-                            } else {
-                                "Audio offline"
-                            },
+                        ui.label(
+                            RichText::new(if v.audio { "Audio on" } else { "Audio off" }).small(),
                         );
-                        ui.label(format!("{:.0} ms queued", v.queued_ms));
-                        ui.label(format!("{:.2}× speed", v.speed));
+                        ui.label(
+                            RichText::new(format!("{:.0} ms", v.queued_ms))
+                                .small()
+                                .color(crate::theme::muted(ui)),
+                        );
                         if v.missing > 0 {
                             ui.colored_label(
-                                Color32::from_rgb(249, 177, 116),
+                                Color32::from_rgb(240, 179, 117),
                                 format!("{} missing frames", v.missing),
                             );
                         }
                     }
                     ui.separator();
-                    ui.label(if self.last_midi.elapsed() < Duration::from_millis(250) {
-                        "MIDI active"
-                    } else {
-                        if self.midi_status.starts_with("Connected:") {
+                    ui.label(
+                        RichText::new(if self.last_midi.elapsed() < Duration::from_millis(250) {
+                            "MIDI active"
+                        } else if self.midi_status.starts_with("Connected:") {
                             "MIDI connected"
                         } else {
                             "MIDI waiting"
-                        }
-                    });
-                });
-                ui.label(
-                    RichText::new(&self.message)
-                        .size((self.settings.accessibility.font_size - 2.0).max(12.0))
+                        })
+                        .small()
                         .color(crate::theme::muted(ui)),
-                );
+                    );
+                    ui.add(
+                        egui::Label::new(
+                            RichText::new(&self.message)
+                                .small()
+                                .color(crate::theme::muted(ui)),
+                        )
+                        .truncate(),
+                    )
+                    .on_hover_text(&self.message);
+                });
             });
-        if self.show_library {
-            egui::SidePanel::left("library")
-                .default_width(275.0)
-                .min_width(200.0)
+        if library_visible {
+            egui::SidePanel::left("library_v2")
+                .default_width(240.0)
+                .min_width(180.0)
+                .max_width(340.0)
                 .resizable(true)
-                .show(ctx, |ui| self.library(ui));
+                .frame(
+                    egui::Frame::new()
+                        .fill(ctx.style().visuals.panel_fill)
+                        .inner_margin(12),
+                )
+                .show(ctx, |ui| {
+                    let height = ui.available_height();
+                    let width = ui.available_width();
+                    egui::ScrollArea::vertical()
+                        .id_salt("library_outer")
+                        .show(ui, |ui| {
+                            ui.set_width(width);
+                            self.library(ui, height)
+                        });
+                });
         }
         if self.right {
-            if ctx.content_rect().width() < 1180.0 {
-                let mut open = self.right;
-                egui::Window::new("Studio inspector")
-                    .open(&mut open)
-                    .default_width(330.0)
-                    .vscroll(true)
-                    .show(ctx, |ui| self.controls(ui));
-                self.right = open;
-            } else {
-                egui::SidePanel::right("inspector")
-                    .default_width(290.0)
-                    .resizable(true)
-                    .show(ctx, |ui| self.controls(ui));
-            }
+            egui::SidePanel::right("controls_v2")
+                .default_width(300.0)
+                .min_width(250.0)
+                .max_width(380.0)
+                .resizable(true)
+                .frame(
+                    egui::Frame::new()
+                        .fill(ctx.style().visuals.panel_fill)
+                        .inner_margin(12),
+                )
+                .show(ctx, |ui| self.controls(ui));
         }
-        egui::CentralPanel::default().show(ctx, |ui| {
-            egui::ScrollArea::both()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ui.set_min_width(520.0);
-                    self.panel(ui)
-                });
-        });
+        egui::CentralPanel::default()
+            .frame(
+                egui::Frame::new()
+                    .fill(ctx.style().visuals.extreme_bg_color)
+                    .inner_margin(16),
+            )
+            .show(ctx, |ui| {
+                let available = ui.available_size();
+                egui::ScrollArea::vertical()
+                    .id_salt("instrument_scroll_v2")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.set_width(available.x);
+                        self.panel(ui, available.y);
+                    });
+            });
         if self.confirm_reset {
             egui::Window::new("Reset this exact firmware's save?")
                 .collapsible(false)
@@ -555,13 +740,15 @@ impl eframe::App for Studio {
                     }
                 });
         }
-        if before != serde_json::to_string(&self.router).unwrap_or_default()
-            || learn_before != self.router.learn
-        {
-            self.send(Command::Panic);
-            if let Ok(mut r) = self.input.router.lock() {
-                *r = self.router.clone();
+        let revision = self.router.config_hash();
+        if revision != self.routing_revision {
+            self.block_keyboard_holds();
+            self.router.clear();
+            self.midi_held = 0;
+            if let Err(e) = self.input.configure(self.router.clone()) {
+                self.message = e;
             }
+            self.routing_revision = revision;
         }
         self.preferences(ctx);
         ctx.request_repaint_after(if self.job.is_some() || self.dialog.is_some() {

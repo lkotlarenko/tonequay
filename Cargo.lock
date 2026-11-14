@@ -1205,25 +1205,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fm1-studio"
-version = "0.4.0"
-dependencies = [
- "cpal",
- "eframe",
- "fm1-core",
- "fm1-soc",
- "midir",
- "png",
- "reqwest",
- "rfd",
- "rtrb",
- "serde",
- "serde_json",
- "sha2",
- "tempfile",
-]
-
-[[package]]
 name = "fm1-web"
 version = "0.4.0"
 dependencies = [
@@ -3697,6 +3678,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baa693a8032d7e1cada7d0041e96126df243179ff061456783ac7f12bda4744c"
 dependencies = [
  "winnow",
+]
+
+[[package]]
+name = "tonequay"
+version = "0.1.0"
+dependencies = [
+ "cpal",
+ "eframe",
+ "fm1-core",
+ "fm1-soc",
+ "midir",
+ "png",
+ "reqwest",
+ "rfd",
+ "rtrb",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
 ]
 
 [[package]]
