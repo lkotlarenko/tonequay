@@ -10,7 +10,8 @@ texts are reproduced here, with their corresponding source projects:
 - zstd-LICENSE.txt: https://raw.githubusercontent.com/facebook/zstd/dev/LICENSE
 - zlib-LICENSE.txt: https://raw.githubusercontent.com/madler/zlib/develop/LICENSE
 
-Runtime source/build instructions: https://github.com/AppImage/type2-runtime
+Runtime source/build instructions for the recorded runtime commit:
+https://github.com/AppImage/type2-runtime/tree/fedfad5
 
 The native Studio executable and AppDir can also run independently of this runtime.
 To replace/relink the runtime, build the upstream runtime and combine it with the

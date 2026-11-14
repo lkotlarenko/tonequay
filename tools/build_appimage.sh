@@ -27,7 +27,7 @@ install -m755 target/release/tonequay "$appdir/usr/bin/tonequay"
 install -m644 LICENSE CREDITS.md "$appdir/usr/share/licenses/tonequay/"
 mkdir -p "$appdir/usr/share/licenses/tonequay/appimage-runtime"
 install -m644 packaging/studio/runtime-licenses/* "$appdir/usr/share/licenses/tonequay/appimage-runtime/"
-install -m644 docs/FM1_STUDIO.md docs/FM1_STUDIO_PLAN.md docs/FM1_STUDIO_TEST_REPORT.md docs/FM1_STUDIO_RELEASE_NOTES.md docs/USER_GUIDE.md docs/BUILDING.md "$appdir/usr/share/doc/tonequay/"
+install -m644 docs/FM1_STUDIO.md docs/FM1_STUDIO_PLAN.md docs/FM1_STUDIO_TEST_REPORT.md docs/FM1_STUDIO_RELEASE_NOTES.md docs/USER_GUIDE.md docs/BUILDING.md docs/ARCHITECTURE.md "$appdir/usr/share/doc/tonequay/"
 # Dependency license texts and metadata are generated from the locked crate sources.
 python3 tools/studio_notices.py "$appdir/usr/share/licenses/tonequay/dependencies"
 linuxdeploy --appdir "$appdir" --executable "$appdir/usr/bin/tonequay" \
@@ -50,5 +50,8 @@ ARCH=x86_64 appimagetool --runtime-file "$runtime" --no-appstream "$appdir" "$st
 mv -f "$stage/Tonequay-x86_64.AppImage" dist/Tonequay-x86_64.AppImage
 install -m755 target/release/tonequay dist/tonequay.pending
 mv -f dist/tonequay.pending dist/tonequay
-(cd dist && sha256sum Tonequay-x86_64.AppImage tonequay) > dist/SHA256SUMS.pending
+tar --sort=name --mtime="@$SOURCE_DATE_EPOCH" --owner=0 --group=0 --numeric-owner \
+    -cf - -C "$appdir/usr/share/licenses/tonequay" . | gzip -n > dist/Tonequay-Licenses.tar.gz.pending
+mv -f dist/Tonequay-Licenses.tar.gz.pending dist/Tonequay-Licenses.tar.gz
+(cd dist && sha256sum Tonequay-x86_64.AppImage tonequay Tonequay-Licenses.tar.gz) > dist/SHA256SUMS.pending
 mv -f dist/SHA256SUMS.pending dist/SHA256SUMS

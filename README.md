@@ -2,6 +2,8 @@
 <h1 align="center">Tonequay</h1>
 <p align="center">Your firmware. Your instrument.</p>
 
+[![CI](https://github.com/lkotlarenko/tonequay/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lkotlarenko/tonequay/actions/workflows/ci.yml)
+
 Tonequay is a lightweight native Linux workstation for exploring and playing
 M-VAVE FM-1 firmware, with MIDI controller integration, a firmware library, and
 AppImage builds. It runs real firmware using
@@ -51,7 +53,7 @@ make appimage
 
 The desktop application lives in `crates/tonequay`; the existing `fm1-core` and
 `fm1-soc` implement the emulator. Existing CLI tools remain available.
-See [architecture](docs/FM1_STUDIO_PLAN.md), [progress](docs/DEVELOPMENT_PROGRESS.md),
+See [architecture](docs/ARCHITECTURE.md), [progress](docs/DEVELOPMENT_PROGRESS.md),
 [contributing](CONTRIBUTING.md) and [release process](docs/RELEASING.md).
 The upstream README and workflows are retained under `docs/upstream/` for reference.
 

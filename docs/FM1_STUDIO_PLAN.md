@@ -1,5 +1,8 @@
 # FM-1 Studio architecture and compatibility audit
 
+Historical initial audit, before the Tonequay rebrand. For the implemented
+application see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 Inspected checkout: upstream workspace 0.4.0, MIT (Joakim Eriksson), clean at start.
 
 ## Existing implementation

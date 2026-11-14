@@ -58,4 +58,4 @@ jobs:
           gh run download "$RUN_ID" --name Tonequay-linux-x86_64 --dir dist
           (cd dist && sha256sum --check SHA256SUMS)
           printf '%s\n' 'Native Linux x86-64 preview. No firmware is bundled.' 'Review compatibility and license notices before publishing.' > release-notes.md
-          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Tonequay $RELEASE_TAG" --notes-file release-notes.md dist/Tonequay-x86_64.AppImage dist/tonequay dist/SHA256SUMS
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "Tonequay $RELEASE_TAG" --notes-file release-notes.md dist/Tonequay-x86_64.AppImage dist/tonequay dist/Tonequay-Licenses.tar.gz dist/SHA256SUMS

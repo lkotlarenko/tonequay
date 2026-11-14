@@ -27,7 +27,8 @@ Never bypass its digest check. The manifest pins packaging-tool contents; updati
 official release and its notices. A moved continuous asset causes a digest
 failure rather than accepting new executable code.
 
-Outputs are `dist/Tonequay-x86_64.AppImage`, `dist/tonequay`, and `dist/SHA256SUMS`.
+Outputs are `dist/Tonequay-x86_64.AppImage`, `dist/tonequay`, `dist/Tonequay-Licenses.tar.gz`, and `dist/SHA256SUMS`.
+Distribute the native executable together with its license archive.
 The AppImage includes dependency notices and runtime source/license references.
 It excludes firmware, glibc and host graphics drivers. SOURCE_DATE_EPOCH defaults
 to the latest source commit timestamp. Locked inputs improve repeatability;
@@ -35,8 +36,9 @@ byte-for-byte reproducibility across different hosts is not yet established.
 
 Build on the oldest supported distribution. The current CachyOS-built artifact
 requires recent glibc and must not be advertised as compatible with older Linux
-systems. Release CI targets Ubuntu 22.04; its output needs a successful runner
-build and external smoke test before broader compatibility can be claimed.
+systems. Release CI targets Ubuntu 22.04; its AppImage was successfully built and
+launched on CachyOS Wayland. That native binary imports at most GLIBC_2.35.
+This is not a guarantee for every distribution; see the test report.
 
 Without FUSE: `APPIMAGE_EXTRACT_AND_RUN=1 dist/Tonequay-x86_64.AppImage --version`.
 Native GUI and physical MIDI tests require a desktop session and hardware;

@@ -15,7 +15,7 @@ both audio and MIDI on real hardware where available. Review all packaged files
 and license notices. Never attach firmware packages to a release.
 
 The GitHub release workflow builds a tagged version and uploads an AppImage,
-native executable and checksums to a **draft release**. A maintainer reviews the
+native executable, license archive and checksums to a **draft release**. A maintainer reviews the
 artifacts and publishes it. This automation is prepared locally and is not
 verified until it has run in the new repository. Do not tag a release before the
 packaging-tool setup and CI are working on the runner.

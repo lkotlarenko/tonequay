@@ -173,3 +173,26 @@ MIDI cleanup, while local Rust 1.99.1 passed. Converted the traversal to iterato
 without changing note-release order and pinned CI/release Rust to the qualified
 1.99.1 toolchain. The original failure is retained in Actions history. Main is
 now the repository default; upstream master is preserved and issues are enabled.
+
+
+GitHub CI run 43630547207 passed on Ubuntu 22.04 at application commit 7be7a25:
+qualified Rust install, strict app formatting/Clippy, workspace/web regressions,
+desktop/script checks, release build, pinned original WaveLoop/AMB-1 audio smokes
+and native --version. The cloud AppImage workflow is being verified separately.
+The final local AppImage also passed virtual ALSA/CPAL panel smoke. A separate
+license archive now accompanies the standalone native executable, and checksums
+cover all three distribution assets. Added current module/thread architecture
+and exact upstream baseline provenance rather than rewriting the historical audit.
+
+
+Cloud AppImage workflow run 43630558971 completed successfully on Ubuntu 22.04:
+packaging-tool digest checks, AppImage creation, outside-tree --version, release
+checksums, original firmware audio smokes and artifact upload all passed. Manual
+workflow dispatch correctly skipped draft-release creation (no version tag).
+
+The Ubuntu-built cloud AppImage was downloaded and passed a native CachyOS
+Wayland firmware/audio/MIDI smoke (exit 0). Its binary imports at most GLIBC_2.35.
+The final packaging update adds the standalone license archive and includes the
+current architecture guide. No public release/tag is created; real hardware
+playing/hotplug, sustained audio profiles and a full accessibility audit remain
+explicit qualification limits.

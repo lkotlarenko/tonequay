@@ -122,7 +122,10 @@ The branded native executable and AppImage were built successfully. The AppImage
 launched from a temporary working directory under Wayland and X11, loaded local
 Felucca firmware, displayed the watched folder and exited with status 0. Relative
 SHA256SUMS verify both release files. Actionlint 1.7.12 validates the new workflows;
-actual GitHub runner results are separate from this local validation.
+GitHub CI run [43630547207](https://github.com/lkotlarenko/tonequay/actions/runs/43630547207)
+also passed on Ubuntu 22.04 at commit 7be7a25, including the full workspace/web
+checks, release build and pinned original-release audio smokes. Cloud AppImage
+packaging is qualified separately.
 
 Measured ten-second desktop smokes peaked at 170.7 MiB RSS / 39.2% of one CPU core
 for the Wayland AppImage, and 173.8 MiB / 45.9% for X11, including full emulation
@@ -135,3 +138,16 @@ The catalog-linked Felucca v1.8.2-beta release returned HTTP 404 during reposito
 preparation; its previously verified local fixture remains usable for testing,
 but CI does not claim it can fetch that missing release. No Hub mirror is used.
 New creator releases require deliberate manifest updates and license review.
+
+
+Cloud AppImage workflow [43630558971](https://github.com/lkotlarenko/tonequay/actions/runs/43630558971)
+passed on Ubuntu 22.04. The uploaded AppImage was downloaded and launched on
+CachyOS Wayland with Felucca, audio and MIDI connected, exiting successfully.
+The cloud native executable imports up to GLIBC_2.35, compared with GLIBC_2.43
+for the locally built native executable. This verifies the older build baseline,
+not every distribution or a physical controller performance test. The manual
+workflow correctly uploads artifacts without creating a versioned release.
+
+An empty-instrument overview smoke used 103.3 MiB peak RSS and approximately
+1.95% of one CPU core, including startup and screenshot capture. No third-party
+firmware artwork is used in the README overview screenshot.
