@@ -166,3 +166,10 @@ The original Felucca catalog release now returns 404, so that CI fixture is not
 silently substituted from a mirror. Cached local Felucca tests remain valid.
 The new remote contains an upstream master branch; publishing uses a separate
 main branch to preserve it. No version tag or public release is created yet.
+
+
+First GitHub runner execution found a new Rust 1.100 Clippy range-loop lint in
+MIDI cleanup, while local Rust 1.99.1 passed. Converted the traversal to iterators
+without changing note-release order and pinned CI/release Rust to the qualified
+1.99.1 toolchain. The original failure is retained in Actions history. Main is
+now the repository default; upstream master is preserved and issues are enabled.

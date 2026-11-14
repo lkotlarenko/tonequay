@@ -757,9 +757,9 @@ impl Notes {
     }
     pub fn release(&mut self) -> Vec<u8> {
         let mut out = Vec::new();
-        for ch in 0..16 {
-            for note in 0..128 {
-                if self.held[ch][note] {
+        for (ch, notes) in self.held.iter().enumerate() {
+            for (note, held) in notes.iter().enumerate() {
+                if *held {
                     out.extend_from_slice(&[0x80 | ch as u8, note as u8, 0]);
                 }
             }

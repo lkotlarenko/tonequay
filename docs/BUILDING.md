@@ -1,6 +1,6 @@
 # Building Tonequay
 
-Use x86-64 Linux with a current stable Rust toolchain, C compiler, pkg-config,
+Release CI pins Rust 1.99.1. Use x86-64 Linux with that toolchain, C compiler, pkg-config,
 ALSA development files, and Wayland/X11/OpenGL development libraries.
 On Arch/CachyOS these include `base-devel rust alsa-lib wayland libxkbcommon
 libx11 libxcursor libxi libxrandr mesa`. Portal file dialogs need a working
