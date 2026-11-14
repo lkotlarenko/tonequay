@@ -42,6 +42,7 @@ jobs:
           name: Tonequay-linux-x86_64
           path: dist/
           if-no-files-found: error
+          overwrite: true
           retention-days: 14
   publish:
     needs: build

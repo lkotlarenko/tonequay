@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-11-14
 
 - Introduce Tonequay, based on Joakim Eriksson’s FM-1 emulator.
 - Native firmware library, verified original-source downloads and offline cache.

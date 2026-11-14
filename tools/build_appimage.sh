@@ -27,7 +27,7 @@ install -m755 target/release/tonequay "$appdir/usr/bin/tonequay"
 install -m644 LICENSE CREDITS.md "$appdir/usr/share/licenses/tonequay/"
 mkdir -p "$appdir/usr/share/licenses/tonequay/appimage-runtime"
 install -m644 packaging/studio/runtime-licenses/* "$appdir/usr/share/licenses/tonequay/appimage-runtime/"
-install -m644 docs/FM1_STUDIO.md docs/FM1_STUDIO_PLAN.md docs/FM1_STUDIO_TEST_REPORT.md docs/FM1_STUDIO_RELEASE_NOTES.md docs/USER_GUIDE.md docs/BUILDING.md docs/ARCHITECTURE.md "$appdir/usr/share/doc/tonequay/"
+install -m644 docs/FM1_STUDIO.md docs/FM1_STUDIO_PLAN.md docs/FM1_STUDIO_TEST_REPORT.md docs/releases/tonequay-v0.1.0.md docs/USER_GUIDE.md docs/BUILDING.md docs/ARCHITECTURE.md "$appdir/usr/share/doc/tonequay/"
 # Dependency license texts and metadata are generated from the locked crate sources.
 python3 tools/studio_notices.py "$appdir/usr/share/licenses/tonequay/dependencies"
 linuxdeploy --appdir "$appdir" --executable "$appdir/usr/bin/tonequay" \

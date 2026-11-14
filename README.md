@@ -27,8 +27,7 @@ Catalog metadata shown above: The Firmware Hub, CC BY 4.0.
 
 ## Getting started
 
-Download the x86-64 AppImage from [Releases](https://github.com/lkotlarenko/tonequay/releases)
-when a release is available:
+Download the x86-64 AppImage from [Releases](https://github.com/lkotlarenko/tonequay/releases):
 
 ```sh
 chmod +x Tonequay-x86_64.AppImage

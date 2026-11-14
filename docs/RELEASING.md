@@ -2,9 +2,10 @@
 
 Repository: https://github.com/lkotlarenko/tonequay
 
-Before the first release, enable Actions and private vulnerability reporting,
+Actions, the application default branch and issues are enabled. Review private
+vulnerability reporting,
 review repository access and require passing CI for pull requests to the default
-branch. Set the repository description to the first paragraph of README. Protect
+branch. The repository description and project topics are set. Protect
 version tags from accidental replacement. No signing key or provenance claim is
 configured yet.
 

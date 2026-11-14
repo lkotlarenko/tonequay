@@ -207,3 +207,13 @@ v0.1.0 from those exact artifacts. Updated automation: version tags publish norm
 releases; manual runs publish unique prereleases without changing latest stable.
 Uploads finish in a temporary draft before automatic publication. Failed builds
 never reach the publish job, and published stable assets are not overwritten.
+
+
+Published https://github.com/lkotlarenko/tonequay/releases/tag/v0.1.0 using exactly
+the four artifacts from Actions run 43631631012. Verified remote uploaded asset
+SHA-256 values, sizes and source commit before publication; no local binary was
+substituted. Added automatic publication for future successful AppImage runs.
+Final release-document housekeeping distinguishes historical Studio 0.4 notes
+from Tonequay 0.1.0 and packages the actual public notes. Artifact upload supports
+workflow reruns; published release assets remain immutable. Automatic preview
+publication is undergoing a live workflow test on this final revision.
