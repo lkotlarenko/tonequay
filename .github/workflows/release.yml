@@ -1,7 +1,7 @@
 name: Linux AppImage
 on:
   push:
-    tags: ['v*']
+    tags: ['v*', 'tonequay-v*']
   workflow_dispatch:
 env:
   RUSTUP_TOOLCHAIN: "1.99.1"
@@ -67,9 +67,9 @@ jobs:
           gh run download "$RUN_ID" --name Tonequay-linux-x86_64 --dir dist
           (cd dist && sha256sum --check SHA256SUMS)
           assets=(dist/Tonequay-x86_64.AppImage dist/tonequay dist/Tonequay-Licenses.tar.gz dist/SHA256SUMS)
-          if [[ "$SOURCE_REF" == refs/tags/v* ]]; then
+          if [[ "$SOURCE_REF" == refs/tags/v* || "$SOURCE_REF" == refs/tags/tonequay-v* ]]; then
             tag="${SOURCE_REF#refs/tags/}"
-            title="Tonequay $tag"
+            title="Tonequay $APP_VERSION"
             flags=(--verify-tag)
             latest=true
           else

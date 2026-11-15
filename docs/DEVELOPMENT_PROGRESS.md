@@ -294,3 +294,10 @@ not reopen audio. Shutdown closes the gate before joining the worker, and comman
 processing is bounded per emulation iteration. Added ControlSignals to keep
 thread ownership explicit. These changes preserve the CPU/JIT and normal audio
 samples. Final local build/CPAL and GitHub release checks follow.
+
+
+Release preparation found inherited local v0.2.0 pointing to upstream engine
+commit 7856393, not the Tonequay app. It is preserved. New app releases use the
+`tonequay-v` namespace, beginning tonequay-v0.2.0. The workflow and version guard
+accept namespaced tags; legacy app v-tags remain compatible. This avoids replacing
+upstream tags or accidentally building old upstream plugin workflows.

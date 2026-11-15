@@ -18,7 +18,7 @@ and license notices. Never attach firmware packages to a release.
 The **Linux AppImage** workflow publishes automatically after every successful
 build, firmware smoke, checksum check and artifact upload:
 
-- Push a `v<application-version>` tag to publish a normal versioned release.
+- Push a `tonequay-v<application-version>` tag to publish a normal versioned release.
   The tag must match `crates/tonequay/Cargo.toml` exactly.
 - Run the workflow manually to publish a prerelease with a unique
   `preview-<run-id>-<attempt>-<commit>` tag. Previews do not replace the latest
@@ -42,8 +42,8 @@ Local commands after adding the new repository remote (the application uses `mai
 git remote add tonequay https://github.com/lkotlarenko/tonequay.git
 git push -u tonequay HEAD:main
 # First bump the app version to 0.2.1 and validate:
-git tag v0.2.1
-git push tonequay v0.2.1
+git tag tonequay-v0.2.1
+git push tonequay tonequay-v0.2.1
 ```
 
 The original origin remains the upstream emulator until explicitly changed.
@@ -61,3 +61,9 @@ without manual intervention. It includes all four assets, and v0.1.0 remains
 latest stable. Both the build and privileged publication jobs passed. This
 qualifies manual preview publishing; future version-tag runs use the same upload
 and publish path with tag/version validation and latest-stable promotion.
+
+
+Use the `tonequay-v` tag namespace for new app releases. The inherited checkout
+already has upstream engine tags such as v0.2.0; never replace or push those as
+Tonequay releases. Legacy unprefixed app tags remain accepted for compatibility,
+but the namespaced tags keep future engine synchronization unambiguous.
