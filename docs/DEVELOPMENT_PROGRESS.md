@@ -301,3 +301,16 @@ commit 7856393, not the Tonequay app. It is preserved. New app releases use the
 `tonequay-v` namespace, beginning tonequay-v0.2.0. The workflow and version guard
 accept namespaced tags; legacy app v-tags remain compatible. This avoids replacing
 upstream tags or accidentally building old upstream plugin workflows.
+
+
+Published https://github.com/lkotlarenko/tonequay/releases/tag/tonequay-v0.2.0
+from source commit 58f759f. Both CI 43686987770 and release run 43686987692 passed,
+including automatic publication. Downloaded all four public assets and verified
+their GitHub SHA-256 digests, sizes and manifest; dist now contains these exact
+Ubuntu-built artifacts (native maximum GLIBC_2.35). The published AppImage then
+passed CachyOS Wayland firmware/display/audio/icon startup smoke and live virtual
+ALSA Learn/Panic/Resume, with 1411 gated callback frames and no held keys. X11
+fallback and five-case native layout review passed earlier. Updated release notes
+with actual changes and validation links. The original upstream v0.2.0 tag remains
+untouched. Physical MiniLab playing/hotplug and full assistive-technology auditing
+remain unverified; no firmware binaries or third-party firmware artwork are bundled.

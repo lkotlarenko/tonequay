@@ -197,3 +197,14 @@ latched until explicit Resume and is shared across device reconnects and firmwar
 loads. Shutdown silences before joining the worker. This avoids relying on timely
 worker command delivery for emergency output control. Host command draining is
 bounded per emulation iteration; the emulated clock and CPU remain unchanged.
+
+
+The exact published [0.2.0 AppImage](https://github.com/lkotlarenko/tonequay/releases/tag/tonequay-v0.2.0)
+was downloaded and all four asset digests matched GitHub metadata and SHA256SUMS.
+[CI 43686987770](https://github.com/lkotlarenko/tonequay/actions/runs/43686987770)
+and [release run 43686987692](https://github.com/lkotlarenko/tonequay/actions/runs/43686987692)
+passed at source 58f759f. The published Ubuntu artifact then passed CachyOS
+Wayland firmware/audio/icon startup and virtual ALSA/CPAL learning and latched
+Panic/Resume tests: 1411 gated frames, resumed audio and no held keys. Its native
+binary imports at most GLIBC_2.35. These are software and virtual-controller
+checks; physical MiniLab playing remains unverified.
