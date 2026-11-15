@@ -1,8 +1,10 @@
 //! Native egui workstation. Workers handle emulator, dialogs, network and file I/O.
 mod inspector;
+mod learning;
 mod library;
 mod panel;
 mod preferences;
+mod toolbar;
 use crate::{
     catalog::{self, Catalog, Entry, Update},
     midi, persistence,
@@ -62,11 +64,15 @@ pub struct Studio {
     right: bool,
     confirm_reset: bool,
     buffer_ms: u32,
-    learn_encoder: u8,
+    learning: bool,
+    learn_label: Option<String>,
+    learn_range: bool,
     opened: Instant,
     screenshot_requested: bool,
     show_preferences: bool,
     show_library: bool,
+    narrow: bool,
+    library_overlay: bool,
     logo: egui::TextureHandle,
     appearance_draft: Option<preferences::AppearanceDraft>,
     routing_revision: u64,
@@ -98,6 +104,19 @@ impl Studio {
             .storage
             .and_then(|s| eframe::get_value(s, "studio"))
             .unwrap_or_default();
+        if std::env::var_os("FM1_STUDIO_SMOKE_SECONDS").is_some()
+            && std::env::var_os("FM1_STUDIO_SMOKE_LIGHT").is_some()
+        {
+            settings.light = true;
+        }
+        if std::env::var_os("FM1_STUDIO_SMOKE_SECONDS").is_some() {
+            if let Ok(scale) = std::env::var("FM1_STUDIO_SMOKE_SCALE") {
+                settings.accessibility.scale = scale.parse().unwrap_or(1.0);
+            }
+            if let Ok(font) = std::env::var("FM1_STUDIO_SMOKE_FONT") {
+                settings.accessibility.font_size = font.parse().unwrap_or(15.0);
+            }
+        }
         settings.accessibility.sanitize();
         if settings.layout_version < 2 {
             settings.right = Some(false);
@@ -148,6 +167,9 @@ impl Studio {
         }
         let mut router = settings.mappings.as_str().pipe_parse().unwrap_or_default();
         router.channel = settings.channel;
+        let smoke_learning = std::env::var_os("FM1_STUDIO_SMOKE_SECONDS").is_some()
+            && std::env::var_os("FM1_STUDIO_SMOKE_LEARN").is_some();
+        router.learning = smoke_learning;
         let routing_revision = router.config_hash();
         let right = settings.right.unwrap_or(false);
         let show_library = settings.library.unwrap_or(true);
@@ -186,12 +208,16 @@ impl Studio {
             right,
             confirm_reset: false,
             buffer_ms,
-            learn_encoder: 2,
+            learning: smoke_learning,
+            learn_label: None,
+            learn_range: false,
             opened: Instant::now(),
             screenshot_requested: false,
             show_preferences: std::env::var_os("FM1_STUDIO_PREFERENCES").is_some(),
             logo,
             show_library,
+            narrow: false,
+            library_overlay: false,
             appearance_draft: None,
             routing_revision,
             midi_held: 0,
@@ -236,17 +262,44 @@ impl Studio {
         self.midi_held = 0;
     }
     fn send(&mut self, c: Command) {
-        if matches!(&c, Command::Panic) {
+        if let Some(v) = &mut self.view {
+            if matches!(&c, Command::Silence) {
+                v.silenced = true;
+            }
+            if matches!(&c, Command::Resume) {
+                v.silenced = false;
+            }
+        }
+        if matches!(&c, Command::Silence) {
+            self.learning = false;
+            self.router.learning = false;
+            self.router.learn = None;
+            self.learn_label = None;
+            self.learn_range = false;
+        }
+        if matches!(&c, Command::Panic | Command::Silence) {
             self.block_keyboard_holds();
             self.router.clear();
             self.input.reset();
             self.midi_held = 0;
+        }
+        if matches!(&c, Command::Resume) {
+            self.message = "Audio resumed".into();
         }
         if let Err(e) = self.runtime.send(c) {
             self.message = e;
         }
     }
     fn load(&mut self, p: PathBuf) {
+        self.learning = false;
+        self.router.learning = false;
+        self.router.learn = None;
+        self.learn_label = None;
+        self.learn_range = false;
+        self.library_overlay = false;
+        if self.narrow {
+            self.right = false;
+        }
         self.send(Command::Panic);
         self.held = [false; 41];
         self.mouse_held = [false; 41];
@@ -412,10 +465,28 @@ impl Studio {
             self.inspector.truncate(24);
             if let Some(mapping) = event.learned {
                 self.router.learn = None;
-                self.router.mappings.retain(|m| {
-                    m.channel != mapping.channel || m.cc != mapping.cc || m.note != mapping.note
-                });
-                self.router.mappings.push(mapping);
+                if self.learn_range {
+                    self.message = match self.router.learn_keyboard(mapping.cc, mapping.channel) {
+                        Ok(()) => "Keyboard mapped · all 27 keys are ready · Esc to finish".into(),
+                        Err(error) => error,
+                    };
+                    self.learn_range = false;
+                    self.learn_label = None;
+                } else {
+                    self.router.mappings.retain(|m| {
+                        (m.channel != mapping.channel
+                            || m.cc != mapping.cc
+                            || m.note != mapping.note)
+                            && (m.target != mapping.target
+                                || (mapping.target == midi::Target::Encoder
+                                    && m.encoder != mapping.encoder))
+                    });
+                    self.router.mappings.push(mapping);
+                    self.message = format!(
+                        "Assigned {} · right-click another control",
+                        self.learn_label.take().unwrap_or_else(|| "control".into())
+                    );
+                }
             }
         }
         if self
@@ -481,6 +552,9 @@ impl Studio {
                             self.message = "Scanning firmware folder…".into();
                         }
                         Dialog::Mappings(r) => {
+                            self.learning = false;
+                            self.learn_label = None;
+                            self.learn_range = false;
                             self.router = *r;
                             self.message = "Mappings imported".into();
                         }
@@ -514,6 +588,9 @@ impl ParseRouter for str {
     }
 }
 impl eframe::App for Studio {
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        crate::theme::background(visuals)
+    }
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
         self.poll(ctx);
         // Opt-in desktop smoke automation; screenshots contain this viewport only.
@@ -562,10 +639,25 @@ impl eframe::App for Studio {
             self.dialog(0);
         }
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::F)) {
+            self.show_library = true;
+            self.library_overlay = true;
+            self.right = false;
             ctx.memory_mut(|m| m.request_focus(egui::Id::new("firmware_search")));
         }
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            self.learning = false;
+            self.router.learning = false;
+            self.router.learn = None;
+            self.learn_label = None;
+        }
+        self.narrow = ctx.content_rect().width()
+            < (800.0 * self.settings.accessibility.font_size / 15.0).clamp(800.0, 1150.0);
         let compact = ctx.content_rect().width() < 1100.0;
-        let library_visible = self.show_library && (!self.right || !compact);
+        let library_visible = if self.narrow {
+            self.library_overlay && !self.right
+        } else {
+            self.show_library && (!self.right || !compact)
+        };
         egui::TopBottomPanel::top("header")
             .frame(
                 egui::Frame::new()
@@ -578,51 +670,31 @@ impl eframe::App for Studio {
                     ui.label(RichText::new("Tonequay").strong().size(18.0));
                     ui.add_space(10.0);
                     if ui.selectable_label(library_visible, "Library").clicked() {
-                        self.show_library = !library_visible;
-                        if compact && self.show_library {
+                        if self.narrow { self.library_overlay = !library_visible; } else { self.show_library = !library_visible; }
+                        if compact && (self.show_library || self.library_overlay) {
                             self.right = false;
                         }
                     }
                     if ui.selectable_label(self.right, "Controls").clicked() {
                         self.right = !self.right;
                     }
-                    ui.separator();
-                    egui::ComboBox::from_id_salt("quick_midi_mode")
-                        .selected_text(match self.router.routing_mode {
-                            midi::RoutingMode::Guest => "MIDI · Firmware",
-                            midi::RoutingMode::Panel => "MIDI · FM-1 panel",
-                        })
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(
-                                &mut self.router.routing_mode,
-                                midi::RoutingMode::Guest,
-                                "Firmware MIDI",
-                            );
-                            ui.selectable_value(
-                                &mut self.router.routing_mode,
-                                midi::RoutingMode::Panel,
-                                "FM-1 panel controls",
-                            );
-                        });
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        if ui
-                            .button("Settings")
-                            .on_hover_text("Appearance & accessibility · F10")
-                            .clicked()
-                        {
-                            self.show_preferences = true;
-                        }
-                        if ui
-                            .add(egui::Button::new("Panic").frame(false))
-                            .on_hover_text("Release all notes, panel keys and sustain")
-                            .clicked()
-                        {
-                            self.send(Command::Panic);
-                            self.held = [false; 41];
-                            self.mouse_held = [false; 41];
-                            self.keyboard_held = [false; 41];
-                        }
-                    });
+                    if ui.selectable_label(self.learning, "MIDI Learn").on_hover_text("Right-click an instrument control, then move or press a MIDI control · Esc to finish").clicked() { self.toggle_learning(); }
+                    toolbar::routing_selector(ui, &mut self.router.routing_mode, self.narrow);
+                    if !self.narrow {
+                        let font=egui::TextStyle::Button.resolve(ui.style());
+                        let labels: &[&str]=if self.view.as_ref().is_some_and(|v|v.silenced) { &["Resume","Panic","Settings"] } else { &["Panic","Settings"] };
+                        let width=labels.iter().map(|text| ui.fonts_mut(|f|f.layout_no_wrap((*text).into(),font.clone(),ui.visuals().text_color()).size().x)+2.0*ui.spacing().button_padding.x).sum::<f32>() + labels.len() as f32*ui.spacing().item_spacing.x;
+                        let space=ui.available_size_before_wrap().x-width-2.0*ui.spacing().item_spacing.x;
+                        if space>0.0 { ui.add_space(space); }
+                    }
+                    if self.runtime.is_silenced() && ui.button("Resume").clicked() { self.send(Command::Resume); }
+                    if ui.add(egui::Button::new("Panic").frame(false)).on_hover_text("Release notes, keys and sustain; silence audio until Resume").clicked() {
+                        ui.memory_mut(|m| { if let Some(id)=m.focused(){m.surrender_focus(id);} });
+                        self.send(Command::Silence);
+                        self.message="Output silenced · select Resume to continue".into();
+                    }
+                    if ui.button("Settings").on_hover_text("Appearance & accessibility · F10").clicked() { self.show_preferences=true; }
+
                 });
             });
         egui::TopBottomPanel::bottom("status")
@@ -632,13 +704,20 @@ impl eframe::App for Studio {
                     .inner_margin(egui::Margin::symmetric(16, 8)),
             )
             .show(ctx, |ui| {
-                ui.horizontal(|ui| {
+                ui.horizontal_wrapped(|ui| {
                     let title = self.firmware_title().to_owned();
                     ui.add(egui::Label::new(RichText::new(title).small()).truncate());
                     if let Some(v) = &self.view {
                         ui.separator();
                         ui.label(
-                            RichText::new(if v.audio { "Audio on" } else { "Audio off" }).small(),
+                            RichText::new(if self.runtime.is_silenced() {
+                                "Silenced"
+                            } else if v.audio {
+                                "Audio on"
+                            } else {
+                                "Audio off"
+                            })
+                            .small(),
                         );
                         ui.label(
                             RichText::new(format!("{:.0} ms", v.queued_ms))
@@ -675,7 +754,7 @@ impl eframe::App for Studio {
                     .on_hover_text(&self.message);
                 });
             });
-        if library_visible {
+        if library_visible && !self.narrow {
             egui::SidePanel::left("library_v2")
                 .default_width(240.0)
                 .min_width(180.0)
@@ -697,7 +776,7 @@ impl eframe::App for Studio {
                         });
                 });
         }
-        if self.right {
+        if self.right && !self.narrow {
             egui::SidePanel::right("controls_v2")
                 .default_width(300.0)
                 .min_width(250.0)
@@ -718,12 +797,25 @@ impl eframe::App for Studio {
             )
             .show(ctx, |ui| {
                 let available = ui.available_size();
+                if self.narrow && library_visible { self.library(ui, available.y); return; }
+                if self.narrow && self.right { self.controls(ui); return; }
                 egui::ScrollArea::vertical()
                     .id_salt("instrument_scroll_v2")
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
                         ui.set_width(available.x);
-                        self.panel(ui, available.y);
+                        if self.learning {
+                            let prompt = self.learn_label.as_ref().map(|name| format!("Listening for {name} — press a MIDI key/pad or move a control")).unwrap_or_else(|| "MIDI Learn · right-click a knob, button or piano key to assign it".into());
+                            ui.label(egui::RichText::new(prompt).color(crate::theme::accent_text(ui)));
+                            ui.horizontal(|ui| {
+                                if ui.small_button("Map all keys…").clicked() { self.start_keyboard_learning(); }
+                                if ui.small_button("Done").clicked() { self.toggle_learning(); }
+                            });
+                            ui.add_space(12.0);
+                        }
+                        egui::Frame::new().fill(ui.visuals().window_fill)
+                            .stroke(egui::Stroke::new(1.0_f32, ui.visuals().widgets.noninteractive.bg_stroke.color))
+                            .corner_radius(10).inner_margin(20).show(ui, |ui| { self.panel(ui, available.y - 40.0 - if self.learning { 60.0 } else { 0.0 }); });
                     });
             });
         if self.confirm_reset {
@@ -740,6 +832,7 @@ impl eframe::App for Studio {
                     }
                 });
         }
+        self.router.learning = self.learning;
         let revision = self.router.config_hash();
         if revision != self.routing_revision {
             self.block_keyboard_holds();

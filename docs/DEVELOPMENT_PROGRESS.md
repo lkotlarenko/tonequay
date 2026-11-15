@@ -228,3 +228,69 @@ The published stable SHA256SUMS was downloaded without authentication and matche
 the exact verified Actions manifest. Replaced an earlier in-progress preview test
 with the final revision and canceled the redundant tag build from initial manual
 publication; neither canceled run is reported as a passed test.
+
+
+## 2026-11-15 — direct learning, emergency silence and desktop polish (0.2.0)
+
+Replaced target-dropdown Learn with instrument-first interaction: a header toggle,
+right-click selection on every knob/button/piano key/master, silent gesture capture,
+repeatable target assignment and one-note calibration of the whole keyboard.
+Assignments replace old target bindings, relative modes are retained and absolute
+encoder calibration survives leaving Learn. Added real egui secondary-click and
+routing regressions, including overlapping keyboard/pad channels. Learn mode
+suppresses guest/host performance actions until finished.
+
+Panic now gates CPAL output after releasing notes/keys/sustain, so firmware-run
+sequences and effect tails are silent too. Resume restores output;
+the emulator continues at its original clock. Added a callback gate test and
+extended the real ALSA/CPAL integration smoke to verify gate frames and Resume.
+
+Fixed the stale Icon=fm1-studio launcher reference. Normal startup registers the
+matching tonequay desktop entry and PNG/SVG icons before Wayland creates the
+window; unchanged files are not rewritten. AppImage root .DirIcon is a real PNG.
+Added isolated desktop installer validation to CI. Light-theme screenshot review
+also found a clipped sidebar path row over the renderer's dark default clear
+color; replaced fixed text/button sizing and made the renderer background opaque
+and theme-aware. Added a regression for the light clear color.
+
+Redesigned the instrument surface and piano keyboard, including overlap-safe black
+key hit testing. At high scaling/narrow widths Library and Controls use full-width
+views instead of squeezing the instrument; normal sidebar preferences remain.
+Final native, themed/compact GUI, packaging and release checks are in progress.
+
+
+Completed 229 workspace tests (37 app), scoped strict Clippy and six web tests.
+Live virtual ALSA/CPAL captured real callback Learn events, played the new binding,
+gated 941 output frames with Panic, resumed and released all keys. Desktop startup
+and spaced-path installer tests passed; the tested AppImage was also registered
+in the user's actual KDE applications directory with Icon=tonequay. AppImage
+contains raster .DirIcon plus hicolor PNG and scalable SVG.
+
+Native screenshot review identified remaining enlarged-toolbar issues. Wrapped
+layouts must use available_size_before_wrap, rather than full-row available_width,
+to place atomic controls and right-side spacing. Added a measured toolbar helper,
+font-aware full-width navigation breakpoints and bounded compact encoder grids.
+Learning highlights only hovered/armed targets, including a dedicated click layer
+for sliders. Final screenshots and cloud release validation follow these fixes.
+
+
+The corrected five-case native review passed after inspecting both themes and
+maximum scaling; toolbar controls now wrap without overlap and font-aware
+navigation preserves useful instrument width. Release AppImage passed X11
+firmware/audio smoke and startup icon checks. Its real callback integration
+verified learning, 1412 silenced output frames, Resume and no held keys.
+Embedded .DirIcon was extracted and verified as a non-symlink PNG. The final
+Panic regression also drains old MIDI UI feedback while holding the routing lock,
+preventing stale held-key highlights from reappearing after Panic. Pending Learn
+is canceled on firmware load or mapping import. Preparing the verified 0.2.0
+source and automatic release; physical MiniLab playing remains unverified.
+
+
+Emergency output control now uses one atomic shared by Runtime and every CPAL
+stream, independent of the command queue and emulation/file I/O. Panic and Resume
+cannot be dropped by queue saturation; a full-queue unit test observes the same
+callback flag. Panic latches until explicit Resume, so incoming note streams do
+not reopen audio. Shutdown closes the gate before joining the worker, and command
+processing is bounded per emulation iteration. Added ControlSignals to keep
+thread ownership explicit. These changes preserve the CPU/JIT and normal audio
+samples. Final local build/CPAL and GitHub release checks follow.

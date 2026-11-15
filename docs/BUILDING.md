@@ -43,3 +43,11 @@ This is not a guarantee for every distribution; see the test report.
 Without FUSE: `APPIMAGE_EXTRACT_AND_RUN=1 dist/Tonequay-x86_64.AppImage --version`.
 Native GUI and physical MIDI tests require a desktop session and hardware;
 headless tests cannot establish those results.
+
+
+For a repeatable real-desktop review, run
+`python3 tools/review_ui.py dist/Tonequay-x86_64.AppImage`. It captures five app-only
+views in isolated XDG roots, including maximum accessibility settings, and closes
+each window. The harness seeds a cached/empty catalog and never refreshes the Hub.
+`python3 tools/test_desktop_integration.py target/release/tonequay` validates icon
+installation and desktop metadata without a GUI or changes to real user data.

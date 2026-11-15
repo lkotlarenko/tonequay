@@ -41,9 +41,9 @@ Local commands after adding the new repository remote (the application uses `mai
 ```sh
 git remote add tonequay https://github.com/lkotlarenko/tonequay.git
 git push -u tonequay HEAD:main
-# First bump the app version to 0.1.1 and validate:
-git tag v0.1.1
-git push tonequay v0.1.1
+# First bump the app version to 0.2.1 and validate:
+git tag v0.2.1
+git push tonequay v0.2.1
 ```
 
 The original origin remains the upstream emulator until explicitly changed.

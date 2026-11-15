@@ -27,11 +27,19 @@ install -m755 target/release/tonequay "$appdir/usr/bin/tonequay"
 install -m644 LICENSE CREDITS.md "$appdir/usr/share/licenses/tonequay/"
 mkdir -p "$appdir/usr/share/licenses/tonequay/appimage-runtime"
 install -m644 packaging/studio/runtime-licenses/* "$appdir/usr/share/licenses/tonequay/appimage-runtime/"
-install -m644 docs/FM1_STUDIO.md docs/FM1_STUDIO_PLAN.md docs/FM1_STUDIO_TEST_REPORT.md docs/releases/tonequay-v0.1.0.md docs/USER_GUIDE.md docs/BUILDING.md docs/ARCHITECTURE.md "$appdir/usr/share/doc/tonequay/"
+install -m644 docs/FM1_STUDIO.md docs/FM1_STUDIO_PLAN.md docs/FM1_STUDIO_TEST_REPORT.md docs/USER_GUIDE.md docs/BUILDING.md docs/ARCHITECTURE.md "$appdir/usr/share/doc/tonequay/"
+release_version=$(target/release/tonequay --version)
+install -m644 "docs/releases/tonequay-v${release_version#Tonequay }.md" "$appdir/usr/share/doc/tonequay/"
 # Dependency license texts and metadata are generated from the locked crate sources.
 python3 tools/studio_notices.py "$appdir/usr/share/licenses/tonequay/dependencies"
 linuxdeploy --appdir "$appdir" --executable "$appdir/usr/bin/tonequay" \
     --desktop-file packaging/studio/tonequay.desktop --icon-file packaging/studio/tonequay.svg
+# A real PNG .DirIcon also supports AppImage icon extractors which do not render SVG.
+if [[ -L "$appdir/.DirIcon" ]]; then unlink "$appdir/.DirIcon"; fi
+install -m644 packaging/studio/tonequay.png "$appdir/.DirIcon"
+install -m644 packaging/studio/tonequay.png "$appdir/tonequay.png"
+mkdir -p "$appdir/usr/share/icons/hicolor/256x256/apps"
+install -m644 packaging/studio/tonequay.png "$appdir/usr/share/icons/hicolor/256x256/apps/tonequay.png"
 # Honor linuxdeploy's platform exclusions: ALSA/PipeWire, GL/EGL and display
 # libraries are host integration components. Rust dependencies are linked in.
 # linuxdeploy creates AppRun as a symlink to the ELF. Replace the link itself,

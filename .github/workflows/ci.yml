@@ -34,6 +34,8 @@ jobs:
           python3 -m py_compile tools/fetch_packaging_tools.py tools/studio_notices.py tools/studio_desktop_smoke.py
       - name: Release build
         run: cargo build --release --locked -p tonequay
+      - name: Desktop icon integration
+        run: python3 tools/test_desktop_integration.py target/release/tonequay
       - name: Original-release firmware audio smoke
         run: python3 tools/firmware_smoke.py
       - name: Native command smoke

@@ -11,11 +11,11 @@ pub fn install() -> Result<String, String> {
         .parent()
         .ok_or("missing XDG data directory")?
         .to_path_buf();
-    persistence::atomic(
+    write_if_changed(
         &root.join("icons/hicolor/256x256/apps/tonequay.png"),
         include_bytes!("../../../packaging/studio/tonequay.png"),
     )?;
-    persistence::atomic(
+    write_if_changed(
         &root.join("icons/hicolor/scalable/apps/tonequay.svg"),
         include_bytes!("../../../packaging/studio/tonequay.svg"),
     )?;
@@ -24,14 +24,24 @@ pub fn install() -> Result<String, String> {
     } else {
         ""
     };
-    let entry=format!("[Desktop Entry]\nType=Application\nName=Tonequay\nComment=Your firmware. Your instrument.\nExec={launcher_prefix}{} %f\nIcon=fm1-studio\nTerminal=false\nCategories=AudioVideo;Audio;Music;\nStartupWMClass=tonequay\nKeywords=FM-1;MIDI;Synthesizer;Emulator;\n",quote(executable.to_str().ok_or("launcher path must be valid UTF-8")?)?);
+    let entry=format!("[Desktop Entry]\nType=Application\nName=Tonequay\nComment=Your firmware. Your instrument.\nExec={launcher_prefix}{} %f\nIcon=tonequay\nTerminal=false\nCategories=AudioVideo;Audio;Music;\nStartupWMClass=tonequay\nKeywords=FM-1;MIDI;Synthesizer;Emulator;\n",quote(executable.to_str().ok_or("launcher path must be valid UTF-8")?)?);
     let path = root.join("applications/tonequay.desktop");
-    persistence::atomic(&path, entry.as_bytes())?;
+    write_if_changed(&path, entry.as_bytes())?;
     Ok(format!(
         "Desktop launcher installed at {}. Keep the application at {}.",
         path.display(),
         executable.display()
     ))
+}
+fn write_if_changed(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    if persistence::read_bounded(path, bytes.len() as u64)
+        .ok()
+        .as_deref()
+        == Some(bytes)
+    {
+        return Ok(());
+    }
+    persistence::atomic(path, bytes)
 }
 fn quote(path: &str) -> Result<String, String> {
     if path.contains(['\n', '\r']) {

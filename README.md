@@ -18,10 +18,18 @@ No firmware is bundled. Official M-VAVE packages must be supplied locally.
 - Searchable Firmware Hub catalog, favorites, verified downloads and offline cache.
 - A configurable firmware folder: add `.fwsc` files and they appear automatically.
 - Guest MIDI passthrough or MIDI control of the emulated FM-1 panel, with MiniLab 3
-  defaults, MIDI Learn, channel routing and a message inspector.
+  defaults, direct right-click MIDI Learn, one-key keyboard setup, channel routing
+  and a message inspector.
 - Native audio, selectable buffering, isolated flash saves and backup tools.
 
 ![Tonequay native workstation interface](docs/media/tonequay.png)
+
+<details>
+<summary>Light theme</summary>
+
+![Tonequay light theme](docs/media/tonequay-light.png)
+
+</details>
 
 Catalog metadata shown above: The Firmware Hub, CC BY 4.0.
 

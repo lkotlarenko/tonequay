@@ -40,7 +40,7 @@ impl Studio {
         ui.horizontal_top(|ui|{
             ui.add_space(((ui.available_width()-band)/2.0).max(0.0));
             if !compact{ui.vertical(|ui|{ui.set_width(rail);for(label,enc)in [("Select",0),("Presets",6),("Algorithm",1)]{self.encoder(ui,label,enc);ui.add_space(8.0);}self.master_control(ui,rail);});ui.add_space(8.0);}
-            egui::Frame::new().fill(Color32::from_rgb(7,8,11)).corner_radius(10).inner_margin(8).show(ui,|ui|{
+            egui::Frame::new().fill(if self.texture.is_some() { Color32::from_rgb(7,8,11) } else { ui.visuals().window_fill }).corner_radius(10).inner_margin(8).show(ui,|ui|{
                 if let Some(t)=&self.texture {
                     let response=ui.add(egui::Image::new(t).fit_to_exact_size(egui::vec2(screen,screen)).sense(egui::Sense::click()));
                     if response.clicked(){ui.memory_mut(|m|{if let Some(id)=m.focused(){m.surrender_focus(id);}});}
@@ -49,8 +49,8 @@ impl Studio {
                     ui.allocate_ui_with_layout(egui::vec2(screen,screen),egui::Layout::top_down(egui::Align::Center),|ui|{
                         ui.add_space((screen*0.22).max(8.0));
                         ui.add(egui::Image::new(&self.logo).fit_to_exact_size(egui::vec2(44.0,44.0)));
-                        ui.add_space(12.0);ui.colored_label(Color32::from_rgb(229,231,239),RichText::new("Find your sound").strong());
-                        ui.colored_label(Color32::from_rgb(159,165,180),"Choose a firmware or open a local file.");
+                        ui.add_space(12.0);ui.label(RichText::new("Load an instrument").strong());
+                        ui.label(RichText::new("Choose firmware from the library.").color(crate::theme::muted(ui)));
                         if ui.button("Open .fwsc…").clicked(){self.dialog(0);}
                     });
                 }
@@ -59,22 +59,33 @@ impl Studio {
         });
         if compact {
             ui.add_space(12.0);
-            ui.horizontal_wrapped(|ui| {
-                for (label, enc) in [
-                    ("Select", 0),
-                    ("Presets", 6),
-                    ("Algorithm", 1),
-                    ("Knob 1", 2),
-                    ("Knob 2", 3),
-                    ("Knob 3", 4),
-                    ("Knob 4", 5),
-                ] {
-                    ui.vertical(|ui| {
-                        ui.set_width(rail);
+            let columns = ((ui.available_width() + 12.0) / (rail + 12.0))
+                .floor()
+                .max(1.0) as usize;
+            egui::Grid::new("compact_encoder_grid")
+                .num_columns(columns)
+                .min_col_width(rail)
+                .max_col_width(rail)
+                .spacing([12.0, 12.0])
+                .show(ui, |ui| {
+                    for (i, (label, enc)) in [
+                        ("Select", 0),
+                        ("Presets", 6),
+                        ("Algorithm", 1),
+                        ("Knob 1", 2),
+                        ("Knob 2", 3),
+                        ("Knob 3", 4),
+                        ("Knob 4", 5),
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    {
                         self.encoder(ui, label, enc);
-                    });
-                }
-            });
+                        if (i + 1) % columns == 0 {
+                            ui.end_row();
+                        }
+                    }
+                });
             self.master_control(ui, rail * 2.0);
         }
         ui.add_space(16.0);
@@ -109,7 +120,7 @@ impl Studio {
         ui.add_space(8.0);
         ui.horizontal_wrapped(|ui| {
             ui.label(
-                RichText::new("A W S E D F T G Y H U J K · C4–C5")
+                RichText::new("Computer keyboard · A–K · C4–C5")
                     .small()
                     .color(crate::theme::muted(ui)),
             );
@@ -117,7 +128,7 @@ impl Studio {
                 ui.label(
                     RichText::new("MIDI → panel keys")
                         .small()
-                        .color(crate::theme::ACCENT),
+                        .color(crate::theme::accent_text(ui)),
                 );
             }
             if ui.small_button("Controller setup").clicked() {
@@ -132,11 +143,13 @@ impl Studio {
             ui.small("Master");
             let old = ui.spacing().slider_width;
             ui.spacing_mut().slider_width = (width - 12.0).max(56.0);
-            if ui
-                .add(egui::Slider::new(&mut self.master, 0..=1023).show_value(false))
-                .on_hover_text("Master volume · arrow keys adjust when focused")
-                .changed()
-            {
+            let previous = self.master;
+            let response = ui.add(egui::Slider::new(&mut self.master, 0..=1023).show_value(false));
+            if self.learning {
+                self.master = previous;
+            }
+            self.learn_control(ui, &response, midi::Target::Master, 0, "Master volume");
+            if response.changed() && !self.learning {
                 self.send(Command::Action(fm1_soc::Action::Adc {
                     ch: 4,
                     value: self.master,
@@ -150,18 +163,19 @@ impl Studio {
             let size=if self.settings.accessibility.large_targets{48.0}else{40.0};
             let(rect,response)=ui.allocate_exact_size(egui::vec2(size,size),egui::Sense::click_and_drag());
             response.widget_info(||egui::WidgetInfo::labeled(egui::WidgetType::DragValue,true,label));
+            self.learn_control(ui, &response, midi::Target::Encoder, enc, label);
             if response.clicked(){response.request_focus();}
             let mut motion=0.0;
             if response.dragged(){motion+=ui.input(|i|-i.pointer.delta().y)*if ui.input(|i|i.modifiers.shift){0.2}else{1.0}/4.0;}
             if response.hovered(){motion+=ui.input_mut(|i|{let delta=i.raw_scroll_delta.y;i.raw_scroll_delta.y=0.0;i.smooth_scroll_delta.y=0.0;delta})/40.0;}
             if response.has_focus(){motion+=ui.input(|i|i.key_pressed(egui::Key::ArrowUp)||i.key_pressed(egui::Key::ArrowRight))as u8 as f32;motion-=ui.input(|i|i.key_pressed(egui::Key::ArrowDown)||i.key_pressed(egui::Key::ArrowLeft))as u8 as f32;}
-            let index=enc as usize;self.knob_drag[index]+=motion;let detents=self.knob_drag[index].trunc().clamp(-16.0,16.0)as i32;
-            if detents!=0{self.knob_drag[index]-=detents as f32;self.knob_turn[index]+=detents as f32*0.13;self.send(Command::Action(fm1_soc::Action::Enc{enc,clicks:detents}));}
+            let index=enc as usize;self.knob_drag[index]+=motion;if self.learning { self.knob_drag[index]=0.0; }let detents=self.knob_drag[index].trunc().clamp(-16.0,16.0)as i32;
+            if !self.learning && detents!=0{self.knob_drag[index]-=detents as f32;self.knob_turn[index]+=detents as f32*0.13;self.send(Command::Action(fm1_soc::Action::Enc{enc,clicks:detents}));}
             let c=rect.center();let r=size*0.43;let hovered=response.hovered()||response.has_focus();
             ui.painter().circle_filled(c,r,ui.visuals().widgets.inactive.bg_fill);
-            ui.painter().circle_stroke(c,r,egui::Stroke::new(if response.has_focus(){2.0_f32}else{1.0},if hovered{crate::theme::ACCENT}else{ui.visuals().widgets.inactive.bg_stroke.color}));
+            ui.painter().circle_stroke(c,r,egui::Stroke::new(if response.has_focus(){2.0_f32}else{1.0},if hovered{crate::theme::accent_text(ui)}else{ui.visuals().widgets.inactive.bg_stroke.color}));
             let angle=-std::f32::consts::FRAC_PI_2+self.knob_turn[index];let dir=egui::vec2(angle.cos(),angle.sin());
-            ui.painter().line_segment([c+dir*(r*0.42),c+dir*(r*0.78)],egui::Stroke::new(2.0_f32,crate::theme::ACCENT));
+            ui.painter().line_segment([c+dir*(r*0.42),c+dir*(r*0.78)],egui::Stroke::new(2.0_f32,crate::theme::accent_text(ui)));
             ui.label(RichText::new(label).small().color(crate::theme::muted(ui)));
             response.on_hover_text(format!("{label}: drag or scroll · Shift for fine movement · arrow keys when focused. Pointer shows relative movement, not a firmware parameter value."));
         });});
@@ -182,18 +196,22 @@ impl Studio {
                 },
             ],
             egui::Button::new(RichText::new(label).color(if led {
-                crate::theme::ACCENT
+                crate::theme::accent_text(ui)
             } else {
                 ui.visuals().text_color()
             }))
             .selected(down),
         );
-        if response.has_focus()
+        self.learn_control(ui, &response, midi::Target::Button(id), 0, label);
+        if !self.learning
+            && response.has_focus()
             && ui.input(|i| i.key_pressed(egui::Key::Enter) || i.key_pressed(egui::Key::Space))
         {
             self.send(Command::Tap(id));
         }
-        self.mouse_held[id as usize] = response.is_pointer_button_down_on();
+        self.mouse_held[id as usize] = !self.learning
+            && response.is_pointer_button_down_on()
+            && ui.input(|i| i.pointer.primary_down());
         self.apply_key(id);
     }
     fn apply_key(&mut self, id: u8) {
@@ -204,32 +222,23 @@ impl Studio {
         }
     }
     fn piano(&mut self, ui: &mut egui::Ui) {
-        let viewport_width = ui.available_width();
-        let available = viewport_width.min(900.0);
-        let min_width = if self.settings.accessibility.large_targets {
-            32.0
-        } else {
-            18.0
-        };
-        let white_width = ((available - 15.0 * 4.0) / 16.0).clamp(min_width, 48.0);
-        let step = white_width + 4.0;
+        let viewport = ui.available_width();
+        let white = ((viewport.min(850.0) - 2.0) / 16.0).clamp(22.0, 48.0);
         let height = if self.settings.accessibility.large_targets {
-            108.0
+            112.0
         } else {
-            88.0
+            96.0
         };
-        let piano_width = 16.0 * step - 4.0;
-        let left = ((viewport_width - piano_width) / 2.0).max(0.0);
+        let width = white * 16.0;
         egui::ScrollArea::horizontal()
             .id_salt("piano_scroll")
             .auto_shrink([false, true])
             .show(ui, |ui| {
-                let width = 16.0 * step - 4.0;
                 ui.horizontal(|ui| {
-                    ui.add_space(left);
+                    ui.add_space(((viewport - width) / 2.0).max(0.0));
                     let (area, _) =
                         ui.allocate_exact_size(egui::vec2(width, height), egui::Sense::hover());
-                    for (n, after) in [
+                    let blacks: Vec<_> = [
                         (1, 0),
                         (3, 1),
                         (5, 2),
@@ -241,33 +250,58 @@ impl Studio {
                         (20, 11),
                         (22, 12),
                         (25, 14),
-                    ] {
-                        let rect = egui::Rect::from_min_size(
-                            area.min + egui::vec2((after as f32 + 0.5) * step, 0.0),
-                            egui::vec2(white_width, height * 0.39),
-                        );
-                        self.piano_key(ui, 14 + n, rect, true);
-                    }
+                    ]
+                    .into_iter()
+                    .map(|(n, after)| {
+                        (
+                            14 + n,
+                            egui::Rect::from_min_size(
+                                area.min
+                                    + egui::vec2((after as f32 + 1.0) * white - white * 0.31, 0.0),
+                                egui::vec2(white * 0.62, height * 0.61),
+                            ),
+                        )
+                    })
+                    .collect();
+                    let covered = ui.input(|i| {
+                        i.pointer
+                            .interact_pos()
+                            .is_some_and(|p| blacks.iter().any(|(_, r)| r.contains(p)))
+                    });
                     for (index, n) in [0, 2, 4, 6, 7, 9, 11, 12, 14, 16, 18, 19, 21, 23, 24, 26]
                         .into_iter()
                         .enumerate()
                     {
                         let rect = egui::Rect::from_min_size(
-                            area.min + egui::vec2(index as f32 * step, height * 0.46),
-                            egui::vec2(white_width, height * 0.52),
+                            area.min + egui::vec2(index as f32 * white, 0.0),
+                            egui::vec2(white - 1.0, height),
                         );
-                        self.piano_key(ui, 14 + n, rect, false);
+                        self.piano_key(ui, 14 + n, rect, false, covered);
+                    }
+                    for (id, rect) in blacks {
+                        self.piano_key(ui, id, rect, true, false);
                     }
                 });
             });
     }
-    fn piano_key(&mut self, ui: &mut egui::Ui, id: u8, rect: egui::Rect, black: bool) {
+    fn piano_key(
+        &mut self,
+        ui: &mut egui::Ui,
+        id: u8,
+        rect: egui::Rect,
+        black: bool,
+        covered: bool,
+    ) {
         let response = ui.interact(
             rect,
             ui.id().with(("piano", id)),
             egui::Sense::click_and_drag(),
         );
-        let down = response.contains_pointer() && ui.input(|i| i.pointer.primary_down());
+        if !covered {
+            self.learn_control(ui, &response, midi::Target::Button(id), 0, &piano_label(id));
+        }
+        let down =
+            !self.learning && response.contains_pointer() && ui.input(|i| i.pointer.primary_down());
         if down && !self.mouse_held[id as usize] {
             let y = ui.input(|i| i.pointer.interact_pos().map_or(rect.center().y, |p| p.y));
             let vel = (((y - rect.top()) / rect.height()).clamp(0.0, 1.0) * 100.0 + 27.0) as u8;
@@ -283,18 +317,26 @@ impl Studio {
         let fill = if held {
             crate::theme::accent_fill(ui)
         } else if black {
-            ui.visuals().widgets.inactive.bg_fill
+            Color32::from_rgb(36, 37, 44)
         } else if ui.visuals().dark_mode {
-            Color32::from_rgb(63, 65, 74)
+            Color32::from_rgb(226, 226, 231)
         } else {
-            Color32::from_rgb(224, 225, 232)
+            Color32::from_rgb(251, 250, 253)
         };
-        ui.painter().rect_filled(rect, 6.0, fill);
+        ui.painter().rect_filled(rect, 3.0, fill);
+        if !black {
+            ui.painter().rect_stroke(
+                rect,
+                3.0,
+                egui::Stroke::new(1.0_f32, Color32::from_rgb(165, 165, 177)),
+                egui::StrokeKind::Inside,
+            );
+        }
         if held {
             ui.painter().rect_stroke(
                 rect,
                 6.0,
-                egui::Stroke::new(1.0_f32, crate::theme::ACCENT),
+                egui::Stroke::new(1.0_f32, crate::theme::accent_text(ui)),
                 egui::StrokeKind::Inside,
             );
         }
@@ -304,7 +346,7 @@ impl Studio {
         ][(note % 12) as usize];
         if !black {
             ui.painter().text(
-                rect.center(),
+                rect.center_bottom() - egui::vec2(0.0, 14.0),
                 egui::Align2::CENTER_CENTER,
                 if note.is_multiple_of(12) || id == 14 {
                     format!("{name}{}", note / 12 - 1)
@@ -312,20 +354,27 @@ impl Studio {
                     name.into()
                 },
                 egui::FontId::proportional((self.settings.accessibility.font_size - 3.0).max(11.0)),
-                ui.visuals().text_color(),
+                if held {
+                    ui.visuals().text_color()
+                } else {
+                    Color32::from_rgb(40, 41, 48)
+                },
             );
         }
         if led {
             ui.painter().circle_filled(
                 rect.center_top() + egui::vec2(0.0, 5.0),
                 2.0,
-                crate::theme::ACCENT,
+                crate::theme::accent_text(ui),
             );
         }
         response.on_hover_text(format!("{name}{} · matrix key {id}", note / 12 - 1));
     }
     fn keyboard(&mut self, ui: &mut egui::Ui) {
-        if !ui.ctx().wants_keyboard_input() && ui.ctx().memory(|m| m.focused().is_none()) {
+        if !self.learning
+            && !ui.ctx().wants_keyboard_input()
+            && ui.ctx().memory(|m| m.focused().is_none())
+        {
             for (k, id) in [
                 (egui::Key::A, 21),
                 (egui::Key::W, 22),
@@ -358,4 +407,15 @@ impl Studio {
             }
         }
     }
+}
+
+pub(super) fn piano_label(id: u8) -> String {
+    if !(14..=40).contains(&id) {
+        return format!("Unsupported key {id}");
+    }
+    let note = 39 + id;
+    let name = [
+        "C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B",
+    ][(note % 12) as usize];
+    format!("{name}{}", note / 12 - 1)
 }

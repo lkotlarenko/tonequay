@@ -108,7 +108,11 @@ impl Drop for Job {
 }
 fn client() -> Result<reqwest::blocking::Client, String> {
     reqwest::blocking::Client::builder()
-        .user_agent("Tonequay/0.1.0 (+https://github.com/lkotlarenko/tonequay)")
+        .user_agent(concat!(
+            "Tonequay/",
+            env!("CARGO_PKG_VERSION"),
+            " (+https://github.com/lkotlarenko/tonequay)"
+        ))
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(60))
         .https_only(true)

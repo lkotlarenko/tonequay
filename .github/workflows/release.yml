@@ -31,6 +31,8 @@ jobs:
         run: make test
       - name: Package
         run: make appimage
+      - name: Desktop icon integration
+        run: python3 tools/test_desktop_integration.py target/release/tonequay
       - name: Original-release firmware audio smoke
         run: python3 tools/firmware_smoke.py
       - name: Test standalone commands

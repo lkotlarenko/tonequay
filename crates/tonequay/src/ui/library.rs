@@ -137,20 +137,9 @@ impl Studio {
         ))
         .default_open(true)
         .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                let width = (ui.available_width() - 66.0).max(40.0);
-                ui.add_sized(
-                    [width, ui.text_style_height(&egui::TextStyle::Small)],
-                    egui::Label::new(
-                        RichText::new(self.folder_snapshot.root.display().to_string()).small(),
-                    )
-                    .truncate(),
-                )
-                .on_hover_text(self.folder_snapshot.root.display().to_string());
-                if ui.small_button("Change").clicked() {
-                    self.dialog(5);
-                }
-            });
+            if folder_path_row(ui, &self.folder_snapshot.root) {
+                self.dialog(5);
+            }
             if ui.small_button("Copy folder path").clicked() {
                 ui.ctx()
                     .copy_text(self.folder_snapshot.root.display().to_string());
@@ -307,6 +296,63 @@ impl Studio {
                     self.inspector_page = 2;
                 }
             });
+        }
+    }
+}
+
+/// Keep the path and its action on one bounded row at every font size.
+fn folder_path_row(ui: &mut egui::Ui, path: &std::path::Path) -> bool {
+    let mut change = false;
+    ui.horizontal(|ui| {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            change = ui.small_button("Change").clicked();
+            ui.add(egui::Label::new(RichText::new(path.display().to_string()).small()).truncate())
+                .on_hover_text(path.display().to_string());
+        });
+    });
+    change
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn folder_path_row_does_not_stretch_to_remaining_panel_height() {
+        for size in [13.0, 15.0, 24.0] {
+            let ctx = egui::Context::default();
+            let accessibility = crate::theme::Accessibility {
+                font_size: size,
+                ..Default::default()
+            };
+            crate::theme::apply(&ctx, true, &accessibility);
+            let _ = ctx.run(
+                egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(240.0, 700.0),
+                    )),
+                    ..Default::default()
+                },
+                |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        let before = ui.cursor().top();
+                        folder_path_row(
+                            ui,
+                            std::path::Path::new(
+                                "/a/very/long/user/firmware/folder/that/must/be/truncated",
+                            ),
+                        );
+                        let after = ui.label("Next library row").rect;
+                        assert!(
+                            after.top() - before < 65.0,
+                            "path row consumed remaining panel height at font {size}"
+                        );
+                        assert!(
+                            ui.min_rect().right() <= ui.max_rect().right() + 1.0,
+                            "path row widened its sidebar"
+                        );
+                    });
+                },
+            );
         }
     }
 }

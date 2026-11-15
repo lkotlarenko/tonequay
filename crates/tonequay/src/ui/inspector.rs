@@ -33,7 +33,7 @@ fn target_label(target: midi::Target, enc: u8) -> String {
             if id < 14 {
                 BUTTONS[id as usize].into()
             } else {
-                format!("Panel key {}", id - 14)
+                super::panel::piano_label(id)
             }
         }
         midi::Target::GuestCc { cc, channel } => format!("Guest CC{cc} / ch{channel}"),
@@ -134,7 +134,7 @@ impl Studio {
                 ui.horizontal(|ui|{ui.label("First pad note");ui.add(egui::DragValue::new(&mut self.router.panel.pad_note).range(0..=120));});
                 ui.horizontal(|ui|{ui.label("Pad channel");ui.add(egui::DragValue::new(&mut self.router.panel.pad_channel).range(0..=16));});
                 ui.small("Eight consecutive pad notes: Play, Record, Home, Save, Arp, Seq, Oct−, Oct+. These are starting assignments; use Learn for your actual preset.");
-                egui::ComboBox::from_id_salt("panel_encoder_mode").selected_text(format!("{:?}",self.router.panel.encoders)).show_ui(ui,|ui|{for m in [midi::Mode::Absolute,midi::Mode::TwosComplement,midi::Mode::BinaryOffset]{ui.selectable_value(&mut self.router.panel.encoders,m,format!("{m:?}"));}});
+                egui::ComboBox::from_id_salt("panel_encoder_mode").selected_text(self.router.panel.encoders.label()).show_ui(ui,|ui|{for m in [midi::Mode::Absolute,midi::Mode::TwosComplement,midi::Mode::BinaryOffset]{ui.selectable_value(&mut self.router.panel.encoders,m,m.label());}});
                 ui.small("CC74/71/76/77 → Knobs 1–4. CC93/18/19 → Presets/Algorithm/Select. CC114 → Select (relative). Fader CC82 → Master.");
             });
             ui.checkbox(
@@ -170,45 +170,39 @@ impl Studio {
         ui.add_space(12.0);
         ui.separator();
         ui.label(RichText::new("MIDI Learn").strong());
-        let choice_name = if self.learn_encoder < 7 {
-            ENCODERS[self.learn_encoder as usize].to_owned()
-        } else if self.learn_encoder == 7 {
-            "Master volume".into()
-        } else if self.learn_encoder < 22 {
-            BUTTONS[(self.learn_encoder - 8) as usize].into()
-        } else {
-            format!("Panel key {}", self.learn_encoder - 22)
-        };
-        egui::ComboBox::from_id_salt("learn_target")
-            .width(ui.available_width() - 8.0)
-            .selected_text(choice_name)
+        ui.label("Assign controls directly on the instrument.");
+        if ui
+            .selectable_label(
+                self.learning,
+                if self.learning {
+                    "Finish learning"
+                } else {
+                    "Start MIDI Learn"
+                },
+            )
+            .clicked()
+        {
+            self.toggle_learning();
+        }
+        ui.small("Right-click a knob, button or piano key, then move or press the MIDI control. Repeat for other controls. Esc finishes.");
+        if ui
+            .button("Map entire keyboard…")
+            .on_hover_text("Press one lowest MIDI key to map all 27 instrument keys at once")
+            .clicked()
+        {
+            self.start_keyboard_learning();
+        }
+        egui::ComboBox::from_label("Encoder input")
+            .selected_text(self.router.panel.encoders.label())
             .show_ui(ui, |ui| {
-                for (i, n) in ENCODERS.iter().enumerate() {
-                    ui.selectable_value(&mut self.learn_encoder, i as u8, *n);
-                }
-                ui.selectable_value(&mut self.learn_encoder, 7, "Master volume");
-                for (i, n) in BUTTONS.iter().enumerate() {
-                    ui.selectable_value(&mut self.learn_encoder, i as u8 + 8, *n);
-                }
-                for n in 0..27 {
-                    ui.selectable_value(&mut self.learn_encoder, 22 + n, format!("Panel key {n}"));
+                for (mode, label) in [
+                    (midi::Mode::Absolute, "Absolute"),
+                    (midi::Mode::TwosComplement, "Relative ±1"),
+                    (midi::Mode::BinaryOffset, "Relative offset 64"),
+                ] {
+                    ui.selectable_value(&mut self.router.panel.encoders, mode, label);
                 }
             });
-        if self.router.learn.is_some() {
-            ui.colored_label(crate::theme::ACCENT, "Move a CC control or press a pad…");
-            if ui.small_button("Cancel learning").clicked() {
-                self.router.learn = None;
-            }
-        } else if ui.button("Learn next control").clicked() {
-            self.router.learn = Some(self.learn_encoder.min(6));
-            self.router.learn_target = if self.learn_encoder < 7 {
-                midi::Target::Encoder
-            } else if self.learn_encoder == 7 {
-                midi::Target::Master
-            } else {
-                midi::Target::Button(self.learn_encoder - 8)
-            };
-        }
         let mut remove = None;
         ui.collapsing(
             format!("Custom assignments · {}", self.router.mappings.len()),
@@ -226,7 +220,7 @@ impl Studio {
                                 ui.small(format!("Channel {} (0 = any)", m.channel));
                                 if m.target == midi::Target::Encoder {
                                     egui::ComboBox::from_id_salt("encoder_mode")
-                                        .selected_text(format!("{:?}", m.mode))
+                                        .selected_text(m.mode.label())
                                         .show_ui(ui, |ui| {
                                             for mode in [
                                                 midi::Mode::Absolute,
@@ -236,7 +230,7 @@ impl Studio {
                                                 ui.selectable_value(
                                                     &mut m.mode,
                                                     mode,
-                                                    format!("{mode:?}"),
+                                                    mode.label(),
                                                 );
                                             }
                                         });

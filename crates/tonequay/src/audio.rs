@@ -7,6 +7,8 @@ use std::sync::{
 #[derive(Default)]
 pub struct Stats {
     pub missing: AtomicU64,
+    pub silenced: Arc<AtomicBool>,
+    pub gated_frames: AtomicU64,
     pub failed: AtomicBool,
     pub started: AtomicBool,
     pub max_block: AtomicU64,
@@ -78,6 +80,12 @@ fn build<T: cpal::SizedSample + cpal::FromSample<f32>>(
                 stats
                     .max_block
                     .fetch_max((out.len() / channels) as u64, Ordering::Relaxed);
+                let silenced = stats.silenced.load(Ordering::Relaxed);
+                if silenced {
+                    stats
+                        .gated_frames
+                        .fetch_add((out.len() / channels) as u64, Ordering::Relaxed);
+                }
                 for frame in out.chunks_mut(channels) {
                     let sample = if !stats.started.load(Ordering::Relaxed) {
                         [0.0; 2]
@@ -89,6 +97,7 @@ fn build<T: cpal::SizedSample + cpal::FromSample<f32>>(
                             [0.0; 2]
                         })
                     };
+                    let sample = audible(sample, silenced);
                     for (c, value) in frame.iter_mut().enumerate() {
                         let v = if channels == 1 {
                             (sample[0] + sample[1]) * 0.5
@@ -107,4 +116,21 @@ fn build<T: cpal::SizedSample + cpal::FromSample<f32>>(
             None,
         )
         .map_err(|e| e.to_string())
+}
+
+/// Emergency output gate; the callback continues draining queued frames.
+fn audible(sample: [f32; 2], silenced: bool) -> [f32; 2] {
+    if silenced {
+        [0.0; 2]
+    } else {
+        sample
+    }
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn panic_gate_silences_even_already_queued_nonzero_audio() {
+        assert_eq!(super::audible([0.8, -0.6], true), [0.0; 2]);
+        assert_eq!(super::audible([0.8, -0.6], false), [0.8, -0.6]);
+    }
 }

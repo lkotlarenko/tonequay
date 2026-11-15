@@ -119,12 +119,25 @@ fn main() -> eframe::Result<()> {
         }
         return Ok(());
     }
+    // KDE resolves Wayland decoration icons through the matching desktop entry.
+    if let Err(error) = desktop::install() {
+        eprintln!("Desktop integration: {error}");
+    }
     let initial = args.get(1).map(std::path::PathBuf::from);
+    let width = if std::env::var_os("FM1_STUDIO_SMOKE_SECONDS").is_some() {
+        std::env::var("FM1_STUDIO_SMOKE_WIDTH")
+            .ok()
+            .and_then(|s| s.parse::<f32>().ok())
+            .filter(|v| v.is_finite() && (940.0..=2400.0).contains(v))
+            .unwrap_or(1360.0)
+    } else {
+        1360.0
+    };
     eframe::run_native(
         "Tonequay",
         eframe::NativeOptions {
             viewport: eframe::egui::ViewportBuilder::default()
-                .with_inner_size([1360.0, 860.0])
+                .with_inner_size([width, 860.0])
                 .with_min_inner_size([940.0, 640.0])
                 .with_app_id("tonequay")
                 .with_icon(

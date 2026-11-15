@@ -8,7 +8,7 @@ new synthesizer. The initial audited engine baseline was upstream commit
 
 | Module | Responsibility |
 |---|---|
-| `ui.rs`, `ui/` | Library, instrument, inspector and preferences; UI-owned settings |
+| `ui.rs`, `ui/` | Library, instrument, direct Learn, responsive toolbar, inspector and preferences; UI-owned settings |
 | `theme.rs` | Appearance, contrast, font/scale bounds and interaction sizing |
 | `runtime.rs` | Worker-owned machine, accurate CPU scheduling, switches and flash lifecycle |
 | `audio.rs` | CPAL configuration, sample formats, rate conversion and output callback |
@@ -56,3 +56,12 @@ is the application branch. The new GitHub repository also retains an upstream
 `master` snapshot. Do not blindly merge that branch into an app release: inspect
 engine changes, rerun regressions and compare legal firmware audio/timing first.
 CPU/JIT optimizations require profiling or a failing regression, not UI work.
+
+
+Panic's emergency silence is separate from routing-change note cleanup. The
+CPAL callback samples an atomic output gate per block, drains the ring normally
+and substitutes silence while gated. It performs no new allocation, I/O or locking.
+An explicit Resume removes the gate. Firmware and timing keep running.
+Learn state is transient and excluded from saved profiles; captured assignments
+use the existing mapping format. An explicit click layer supports drag-only
+sliders as well as buttons/encoders, without invoking performance actions.

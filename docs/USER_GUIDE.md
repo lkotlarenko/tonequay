@@ -48,3 +48,41 @@ favorites, mappings, cached firmware and saves therefore remain available.
 Flash identity uses the exact package hash; saves are not silently shared
 across incompatible firmware versions. The upstream `.fm1save` format is not
 imported. See the original [guide](FM1_STUDIO.md) for audio, backup and troubleshooting.
+
+
+## MIDI Learn on the instrument (0.2)
+
+1. Click **MIDI Learn** in the header.
+2. Right-click a knob, master slider, button or piano key on the instrument.
+3. Move a MIDI controller or press its key/pad. The status confirms the assignment.
+4. Right-click the next target and repeat. Click **Done** or press Esc to finish.
+
+No target-number dropdown is needed. Input is consumed during learning: assigning
+Save does not save, and assigning a key does not play a note. Reassigning a target
+replaces its previous input. Assignments remain in the existing mapping profiles.
+For relative knobs, choose the encoder input format under Controls → MIDI.
+
+**Map all keys…** in Learn mode maps the complete keyboard from one incoming
+lowest key. It selects FM-1 panel routing and captures the incoming channel and
+starting note; other panel assignments are preserved. Individual piano overrides
+are replaced by the calibrated range. This avoids learning 27 notes separately.
+
+## Panic and resume
+
+Panic releases held notes, sustain and virtual keys and silences the actual audio
+output, including queued sound and firmware-generated sequences. Click Resume to hear audio again. Incoming MIDI cannot bypass the emergency
+silence. The firmware keeps running, and saves are
+preserved. Panic does not reboot the instrument.
+
+## KDE application icons
+
+Normal startup installs/updates `tonequay.desktop` and matching PNG/SVG icons in
+your XDG data directory before creating the window. The Wayland application ID,
+launcher ID and icon name are all `tonequay`. Identical files are left untouched
+to avoid rebuilding the desktop cache on every launch. Moving an AppImage updates
+the launcher to its new location on the next launch. Keep it at a stable location.
+
+The AppImage also embeds a PNG `.DirIcon`. File-manager thumbnails before first
+launch depend on the desktop's AppImage thumbnail support; the menu and window
+icon use the registered desktop entry. Preferences retains an explicit installer
+for repairing the integration.

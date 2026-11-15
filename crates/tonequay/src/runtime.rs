@@ -114,6 +114,8 @@ pub enum Command {
         timestamp: u64,
     },
     Panic,
+    Silence,
+    Resume,
     Save,
     Export(PathBuf),
     Import(PathBuf),
@@ -129,6 +131,8 @@ pub struct View {
     pub queued_ms: f64,
     pub missing: u64,
     pub audio: bool,
+    pub silenced: bool,
+    pub gated_frames: u64,
     pub name: String,
     pub hash: String,
     pub error: String,
@@ -151,11 +155,18 @@ impl ViewMailbox {
         }
     }
 }
+#[derive(Clone, Default)]
+struct ControlSignals {
+    quit: Arc<AtomicBool>,
+    urgent: Arc<AtomicBool>,
+    silenced: Arc<AtomicBool>,
+}
 pub struct Runtime {
     pub tx: SyncSender<Command>,
     pub rx: ViewMailbox,
     pub notices: Receiver<String>,
     pub urgent: Arc<AtomicBool>,
+    silenced: Arc<AtomicBool>,
     quit: Arc<AtomicBool>,
     thread: Option<std::thread::JoinHandle<()>>,
 }
@@ -165,21 +176,34 @@ impl Runtime {
         let views = ViewMailbox::default();
         let viewrx = views.clone();
         let (notices, notice_rx) = mpsc::sync_channel(16);
-        let quit = Arc::new(AtomicBool::new(false));
-        let q = quit.clone();
-        let urgent = Arc::new(AtomicBool::new(false));
-        let u = urgent.clone();
-        let thread = std::thread::spawn(move || worker(root, rx, views, notices, q, u, ctx));
+        let signals = ControlSignals::default();
+        let quit = signals.quit.clone();
+        let urgent = signals.urgent.clone();
+        let silenced = signals.silenced.clone();
+        let thread = std::thread::spawn(move || worker(root, rx, views, notices, signals, ctx));
         Self {
             tx,
             rx: viewrx,
             notices: notice_rx,
             urgent,
+            silenced,
             quit,
             thread: Some(thread),
         }
     }
+    pub fn is_silenced(&self) -> bool {
+        self.silenced.load(Ordering::Acquire)
+    }
     pub fn send(&self, c: Command) -> Result<(), String> {
+        // Emergency output control cannot depend on queue capacity or worker I/O.
+        if matches!(&c, Command::Silence | Command::Resume) {
+            let silence = matches!(&c, Command::Silence);
+            self.silenced.store(silence, Ordering::Release);
+            if silence {
+                self.urgent.store(true, Ordering::Release);
+            }
+            return Ok(());
+        }
         self.tx.try_send(c).map_err(|e| {
             self.urgent.store(true, Ordering::Relaxed);
             format!("runtime queue: {e}")
@@ -188,6 +212,7 @@ impl Runtime {
 }
 impl Drop for Runtime {
     fn drop(&mut self) {
+        self.silenced.store(true, Ordering::Release);
         self.quit.store(true, Ordering::Relaxed);
         if let Some(t) = self.thread.take() {
             let _ = t.join();
@@ -208,14 +233,19 @@ fn worker(
     rx: Receiver<Command>,
     views: ViewMailbox,
     notices: SyncSender<String>,
-    quit: Arc<AtomicBool>,
-    urgent: Arc<AtomicBool>,
+    signals: ControlSignals,
     ctx: eframe::egui::Context,
 ) {
+    let quit = signals.quit;
+    let urgent = signals.urgent;
+    let silenced = signals.silenced;
     let mut session: Option<Session> = None;
     let mut stream = None;
     let mut producer = None;
-    let mut stats = Arc::new(audio::Stats::default());
+    let mut stats = Arc::new(audio::Stats {
+        silenced: silenced.clone(),
+        ..Default::default()
+    });
     let mut rate = 44100;
     let mut target = 50u32;
     let mut device = String::new();
@@ -237,7 +267,10 @@ fn worker(
     let mut flash_quiet = Instant::now();
     let mut pending_save: Option<Option<PathBuf>> = None;
     while !quit.load(Ordering::Relaxed) {
-        while let Ok(command) = rx.try_recv() {
+        for _ in 0..1024 {
+            let Ok(command) = rx.try_recv() else {
+                break;
+            };
             let result: Result<(), String> = (|| {
                 match command {
                     Command::Load(path) => {
@@ -269,7 +302,10 @@ fn worker(
                         }
                         stream = None;
                         producer = None;
-                        stats = Arc::new(audio::Stats::default());
+                        stats = Arc::new(audio::Stats {
+                            silenced: silenced.clone(),
+                            ..Default::default()
+                        });
                         phase = 0.0;
                         previous = [0.0; 2];
                         session = Some(Session {
@@ -330,6 +366,18 @@ fn worker(
                             }
                         }
                     }
+                    Command::Resume => {
+                        stats.silenced.store(false, Ordering::Relaxed);
+                    }
+                    Command::Silence => {
+                        stats.silenced.store(true, Ordering::Relaxed);
+                        if let Some(s) = &mut session {
+                            s.machine.panic();
+                        }
+                        let _ =
+                            notices.try_send("Output silenced · select Resume to continue".into());
+                        ctx.request_repaint();
+                    }
                     Command::Panic => {
                         if let Some(s) = &mut session {
                             s.machine.panic();
@@ -389,7 +437,10 @@ fn worker(
                         target = ms.clamp(10, 100);
                         stream = None;
                         producer = None;
-                        stats = Arc::new(audio::Stats::default());
+                        stats = Arc::new(audio::Stats {
+                            silenced: silenced.clone(),
+                            ..Default::default()
+                        });
                         audio_retry = Instant::now() - Duration::from_secs(3);
                     }
                 }
@@ -417,7 +468,10 @@ fn worker(
         }
         if stream.is_none() && audio_retry.elapsed() >= Duration::from_secs(2) {
             audio_retry = Instant::now();
-            stats = Arc::new(audio::Stats::default());
+            stats = Arc::new(audio::Stats {
+                silenced: silenced.clone(),
+                ..Default::default()
+            });
             let (p, c) = rtrb::RingBuffer::new(48_000);
             match audio::start(&device, c, stats.clone(), target) {
                 Ok((st, r)) => {
@@ -460,6 +514,8 @@ fn worker(
                     queued_ms: 0.0,
                     missing: stats.missing.load(Ordering::Relaxed),
                     audio: false,
+                    silenced: stats.silenced.load(Ordering::Relaxed),
+                    gated_frames: stats.gated_frames.load(Ordering::Relaxed),
                     name: s.name.clone(),
                     hash: s.hash.clone(),
                     error: error.clone(),
@@ -557,6 +613,8 @@ fn worker(
                     queued_ms,
                     missing: stats.missing.load(Ordering::Relaxed),
                     audio: stream.is_some(),
+                    silenced: stats.silenced.load(Ordering::Relaxed),
+                    gated_frames: stats.gated_frames.load(Ordering::Relaxed),
                     name: s.name.clone(),
                     hash: s.hash.clone(),
                     error: error.clone(),
@@ -767,6 +825,60 @@ pub fn panel_smoke(package: PathBuf, root: PathBuf) -> Result<(), String> {
     if event(&[0x89, 38, 0])?.panel_keys != 0 {
         return Err("pad release left Home held".into());
     }
+    let mut learning_router = crate::midi::Router::with_mode(crate::midi::RoutingMode::Panel);
+    learning_router.learning = true;
+    learning_router.learn = Some(2);
+    input.configure(learning_router)?;
+    let capture = event(&[0xb0, 74, 64])?;
+    if capture.learned.is_none() || capture.encoders != [0; 7] {
+        return Err("Encoder assignment was not captured silently".into());
+    }
+    let mut learning_router = input.router.lock().map_err(|e| e.to_string())?.clone();
+    learning_router.learn = Some(0);
+    learning_router.learn_target = crate::midi::Target::Button(21);
+    input.configure(learning_router)?;
+    let capture = event(&[0x90, 50, 100])?;
+    if capture.learned.is_none() || capture.panel_keys != 0 {
+        return Err("Piano assignment played a note during learning".into());
+    }
+    event(&[0x80, 50, 0])?;
+    let mut learned_router = input.router.lock().map_err(|e| e.to_string())?.clone();
+    learned_router.learning = false;
+    input.configure(learned_router)?;
+    if event(&[0x90, 50, 100])?.panel_keys != (1 << 21) {
+        return Err("Learned piano key did not play after learning".into());
+    }
+    event(&[0x80, 50, 0])?;
+    runtime.send(Command::Silence)?;
+    let wait = Instant::now();
+    let mut gated_frames = 0;
+    while wait.elapsed() < Duration::from_secs(3) {
+        if let Ok(view) = runtime.rx.try_recv() {
+            if view.silenced && view.gated_frames > 0 {
+                gated_frames = view.gated_frames;
+                break;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    if gated_frames == 0 {
+        return Err("Panic did not silence the real audio callback".into());
+    }
+    runtime.send(Command::Resume)?;
+    let wait = Instant::now();
+    let mut resumed = false;
+    while wait.elapsed() < Duration::from_secs(3) {
+        if let Ok(view) = runtime.rx.try_recv() {
+            if !view.silenced {
+                resumed = true;
+                break;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    if !resumed {
+        return Err("Audio resume failed".into());
+    }
     input.reset();
     runtime.send(Command::Panic)?;
     drop(input);
@@ -803,10 +915,40 @@ pub fn panel_smoke(package: PathBuf, root: PathBuf) -> Result<(), String> {
     let passed = audio && stage == 4 && nonzero > 0 && router.key_mask() == 0;
     println!(
         "{}",
-        serde_json::json!({"passed":passed,"audio_ready":audio,"virtual_input":connected,"observations":observations,"headless_panel_nonzero_samples":nonzero,"no_held_keys":router.key_mask()==0})
+        serde_json::json!({"passed":passed,"audio_ready":audio,"learning_verified":true,"panic_gated_frames":gated_frames,"audio_resumed":resumed,"virtual_input":connected,"observations":observations,"headless_panel_nonzero_samples":nonzero,"no_held_keys":router.key_mask()==0})
     );
     if !passed {
         return Err("panel-mode integration smoke failed".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod emergency_tests {
+    use super::*;
+    #[test]
+    fn panic_and_resume_reach_callback_gate_even_with_a_full_command_queue() {
+        let (tx, _commands) = mpsc::sync_channel(1);
+        tx.try_send(Command::Panic).ok().unwrap();
+        let (_notice_tx, notices) = mpsc::sync_channel(1);
+        let gate = Arc::new(AtomicBool::new(false));
+        let callback = audio::Stats {
+            silenced: gate.clone(),
+            ..Default::default()
+        };
+        let runtime = Runtime {
+            tx,
+            rx: ViewMailbox::default(),
+            notices,
+            urgent: Arc::new(AtomicBool::new(false)),
+            silenced: gate,
+            quit: Arc::new(AtomicBool::new(false)),
+            thread: None,
+        };
+        runtime.send(Command::Silence).unwrap();
+        assert!(callback.silenced.load(Ordering::Acquire));
+        assert!(runtime.urgent.load(Ordering::Acquire));
+        runtime.send(Command::Resume).unwrap();
+        assert!(!callback.silenced.load(Ordering::Acquire));
+    }
 }

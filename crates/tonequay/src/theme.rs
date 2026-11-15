@@ -51,6 +51,13 @@ pub fn accent_fill(ui: &egui::Ui) -> Color32 {
         Color32::from_rgb(244, 216, 232)
     }
 }
+pub fn accent_text(ui: &egui::Ui) -> Color32 {
+    if ui.visuals().dark_mode {
+        ACCENT
+    } else {
+        Color32::from_rgb(137, 46, 92)
+    }
+}
 pub fn apply(ctx: &egui::Context, light: bool, a: &Accessibility) {
     let mut style = egui::Style::default();
     let font = a.font_size.clamp(13.0, 24.0);
@@ -82,6 +89,12 @@ pub fn apply(ctx: &egui::Context, light: bool, a: &Accessibility) {
     } else {
         egui::Visuals::dark()
     };
+    if light {
+        style.visuals.panel_fill = Color32::from_rgb(246, 245, 247);
+        style.visuals.window_fill = Color32::from_rgb(252, 251, 253);
+        style.visuals.extreme_bg_color = Color32::from_rgb(237, 236, 240);
+        style.visuals.faint_bg_color = Color32::from_rgb(229, 228, 234);
+    }
     if !light {
         style.visuals.panel_fill = Color32::from_rgb(20, 21, 25);
         style.visuals.window_fill = Color32::from_rgb(26, 28, 33);
@@ -150,4 +163,20 @@ pub fn apply(ctx: &egui::Context, light: bool, a: &Accessibility) {
     }
     ctx.set_style(style);
     ctx.set_zoom_factor(a.scale.clamp(0.8, 1.8));
+}
+
+/// Unpainted panel gaps must use an opaque theme color, never the renderer default.
+pub fn background(visuals: &egui::Visuals) -> [f32; 4] {
+    visuals.panel_fill.to_normalized_gamma_f32()
+}
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn light_theme_keeps_unpainted_panel_gaps_light_and_opaque() {
+        let ctx = eframe::egui::Context::default();
+        super::apply(&ctx, true, &super::Accessibility::default());
+        let color = super::background(&ctx.style().visuals);
+        assert!(color[..3].iter().all(|v| *v > 0.8));
+        assert_eq!(color[3], 1.0);
+    }
 }

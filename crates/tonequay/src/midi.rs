@@ -23,6 +23,15 @@ pub enum Mode {
     TwosComplement,
     BinaryOffset,
 }
+impl Mode {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Absolute => "Absolute position",
+            Self::TwosComplement => "Relative (+1 / −1)",
+            Self::BinaryOffset => "Relative (offset 64)",
+        }
+    }
+}
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum RoutingMode {
     #[default]
@@ -128,6 +137,8 @@ pub struct Router {
     #[serde(skip)]
     pub learn: Option<u8>,
     #[serde(skip)]
+    pub learning: bool,
+    #[serde(skip)]
     pub learn_target: Target,
     #[serde(skip)]
     last: std::collections::HashMap<Source, u8>,
@@ -166,9 +177,31 @@ impl Router {
             self.panel,
             self.learn,
             self.learn_target,
+            self.learning,
         )
             .hash(&mut h);
         h.finish()
+    }
+    fn prepare_configuration(&mut self, current: &Self) {
+        self.clear();
+        if self.channel == current.channel
+            && self.routing_mode == current.routing_mode
+            && self.panel == current.panel
+            && self.mappings == current.mappings
+        {
+            self.last.clone_from(&current.last);
+        }
+    }
+    pub fn learn_keyboard(&mut self, note: u8, channel: u8) -> Result<(), String> {
+        if note > 101 || !(1..=16).contains(&channel) {
+            return Err("Choose a lowest key at MIDI note 101 or below".into());
+        }
+        self.panel.first_note = note;
+        self.panel.channel = channel;
+        self.routing_mode = RoutingMode::Panel;
+        self.mappings
+            .retain(|m| !matches!(m.target, Target::Button(14..=40)));
+        Ok(())
     }
     pub fn key_mask(&self) -> u64 {
         self.state
@@ -336,6 +369,13 @@ impl Router {
     }
     pub fn route(&mut self, input: &[u8]) -> (Vec<fm1_soc::Action>, Vec<u8>) {
         let mut host = Vec::new();
+        let assignable = input.len() == 3
+            && input
+                .first()
+                .is_some_and(|status| matches!(status & 0xf0, 0x80 | 0x90 | 0xb0));
+        if self.learning && (self.learn.is_none() || !assignable) {
+            return (host, Vec::new());
+        }
         let panel = self.routing_mode == RoutingMode::Panel;
         let mut guest = if panel { vec![] } else { input.to_vec() };
         let mut translated = Vec::new();
@@ -358,14 +398,23 @@ impl Router {
             let may_learn = !note || (raw > 0 && matches!(self.learn_target, Target::Button(_)));
             if may_learn {
                 if let Some(enc) = self.learn.take() {
-                    self.mappings
-                        .retain(|m| m.channel != ch || m.cc != input[1] || m.note != note);
+                    self.mappings.retain(|m| {
+                        (m.channel != ch || m.cc != input[1] || m.note != note)
+                            && (m.target != self.learn_target
+                                || (m.target == Target::Encoder && m.encoder != enc))
+                    });
                     self.mappings.push(Mapping {
                         note,
                         target: self.learn_target,
+                        mode: self.panel.encoders,
                         ..Mapping::encoder(ch, input[1], enc)
                     });
+                    self.last.insert(source, raw);
+                    return (host, Vec::new());
                 }
+            }
+            if self.learn.is_some() {
+                return (host, Vec::new());
             }
             // Channel-specific overrides win over wildcard/default assignments.
             let matches = |m: &&Mapping| {
@@ -411,7 +460,12 @@ impl Router {
                             .filter(|_| {
                                 self.panel.pad_channel == 0 || self.panel.pad_channel == ch
                             });
-                        if let Some(n) = pad {
+                        let key = input[1]
+                            .checked_sub(self.panel.first_note)
+                            .filter(|n| *n < 27);
+                        if let Some(n) = key.filter(|_| self.panel.channel == ch) {
+                            self.press(source, 14 + n, raw, &mut host);
+                        } else if let Some(n) = pad {
                             self.press(source, PADS[n as usize], raw, &mut host);
                         } else if self.panel.channel == 0 || self.panel.channel == ch {
                             if let Some(n) = input[1]
@@ -522,11 +576,11 @@ pub struct Input {
 impl Input {
     /// Serialize mode/profile changes after old events, before new input.
     pub fn configure(&self, mut router: Router) -> Result<(), String> {
-        router.clear();
         let mut current = self
             .router
             .lock()
             .map_err(|_| "MIDI routing state unavailable")?;
+        router.prepare_configuration(&current);
         if self
             .runtime
             .try_send(crate::runtime::Command::Panic)
@@ -541,6 +595,8 @@ impl Input {
     pub fn reset(&self) {
         if let Ok(mut current) = self.router.lock() {
             current.clear();
+            // The lock excludes callback delivery while stale UI feedback is drained.
+            while self.rx.try_recv().is_ok() {}
             if self
                 .runtime
                 .try_send(crate::runtime::Command::Panic)
@@ -978,6 +1034,8 @@ mod panel_tests {
         let mut r = panel();
         r.learn = Some(0);
         r.learn_target = Target::Button(9);
+        assert!(r.route(&[0x99, 36, 100]).0.is_empty());
+        r.route(&[0x89, 36, 0]);
         assert_eq!(
             r.route(&[0x99, 36, 100]).0,
             vec![Action::Key { id: 9, down: true }]
@@ -1032,5 +1090,171 @@ mod panel_tests {
         let loaded: Router = serde_json::from_str(&json).unwrap();
         assert_eq!(loaded.routing_mode, RoutingMode::Panel);
         assert_eq!(loaded.key_mask(), 0);
+    }
+}
+
+#[cfg(test)]
+mod learning_tests {
+    use super::*;
+    #[test]
+    fn learning_session_consumes_gestures_and_reassigns_target_without_duplicates() {
+        let mut r = Router {
+            learning: true,
+            learn: Some(2),
+            ..Default::default()
+        };
+        for message in [vec![0xf8], vec![0xfa], vec![0xe0, 0, 64]] {
+            assert_eq!(r.route(&message), (vec![], vec![]));
+            assert!(r.learn.is_some());
+        }
+        assert_eq!(r.route(&[0xb0, 74, 40]), (vec![], vec![]));
+        assert_eq!(r.mappings.len(), 1);
+        assert_eq!(r.route(&[0x90, 60, 100]), (vec![], vec![]));
+        r.learn = Some(2);
+        r.route(&[0xb0, 71, 50]);
+        assert_eq!(r.mappings.len(), 1);
+        assert_eq!(r.mappings[0].cc, 71);
+        r.learning = false;
+        assert_eq!(
+            r.route(&[0xb0, 71, 55]).0,
+            vec![fm1_soc::Action::Enc { enc: 2, clicks: 5 }]
+        );
+    }
+    #[test]
+    fn button_learning_never_triggers_the_action_and_tracks_release_afterwards() {
+        let mut r = Router {
+            learning: true,
+            learn: Some(0),
+            learn_target: Target::Button(9),
+            ..Default::default()
+        };
+        assert_eq!(r.route(&[0x99, 36, 127]), (vec![], vec![]));
+        assert_eq!(r.key_mask(), 0);
+        assert_eq!(r.route(&[0x89, 36, 0]), (vec![], vec![]));
+        r.learning = false;
+        assert_eq!(
+            r.route(&[0x99, 36, 127]).0,
+            vec![fm1_soc::Action::Key { id: 9, down: true }]
+        );
+        assert_eq!(
+            r.route(&[0x89, 36, 0]).0,
+            vec![fm1_soc::Action::Key { id: 9, down: false }]
+        );
+    }
+    #[test]
+    fn one_note_can_calibrate_the_whole_keyboard_and_preserve_panel_assignments() {
+        let mut r = Router::default();
+        r.mappings.push(Mapping {
+            target: Target::Button(9),
+            note: true,
+            ..Mapping::encoder(10, 36, 0)
+        });
+        r.learn_keyboard(48, 1).unwrap();
+        assert_eq!(r.mappings.len(), 1);
+        for offset in 0..27 {
+            assert!(
+                matches!(r.route(&[0x90,48+offset,100]).0.last(),Some(fm1_soc::Action::Key{id,down:true}) if *id==14+offset)
+            );
+            r.route(&[0x80, 48 + offset, 0]);
+        }
+        assert_eq!(r.key_mask(), 0);
+        assert!(r.learn_keyboard(127, 1).is_err());
+        assert_eq!(r.panel.first_note, 48);
+    }
+    #[test]
+    fn relative_mode_is_preserved_by_direct_learning() {
+        let mut r = Router {
+            learn: Some(3),
+            ..Default::default()
+        };
+        r.panel.encoders = Mode::TwosComplement;
+        r.route(&[0xb0, 20, 1]);
+        assert_eq!(
+            r.route(&[0xb0, 20, 127]).0,
+            vec![fm1_soc::Action::Enc { enc: 3, clicks: -1 }]
+        );
+    }
+}
+
+#[cfg(test)]
+mod learning_transition_tests {
+    use super::*;
+    #[test]
+    fn finishing_learning_preserves_captured_absolute_position() {
+        let mut current = Router {
+            learning: true,
+            learn: Some(2),
+            ..Default::default()
+        };
+        current.route(&[0xb0, 74, 64]);
+        let mut configured = Router {
+            mappings: current.mappings.clone(),
+            ..Default::default()
+        };
+        configured.prepare_configuration(&current);
+        assert_eq!(
+            configured.route(&[0xb0, 74, 66]).0,
+            vec![fm1_soc::Action::Enc { enc: 2, clicks: 2 }]
+        );
+    }
+    #[test]
+    fn calibrated_keyboard_takes_priority_over_automatic_pads_on_same_channel() {
+        let mut r = Router::default();
+        r.learn_keyboard(36, 10).unwrap();
+        assert_eq!(
+            r.route(&[0x99, 36, 100]).0.last(),
+            Some(&fm1_soc::Action::Key { id: 14, down: true })
+        );
+    }
+}
+
+#[cfg(test)]
+mod panic_queue_tests {
+    use super::*;
+    #[test]
+    fn panic_discards_old_held_key_feedback_before_input_can_resume() {
+        let (events, rx) = sync_channel(4);
+        let (_status, status) = sync_channel(1);
+        let (runtime, _commands) = sync_channel(8);
+        let mut router = Router::with_mode(RoutingMode::Panel);
+        router.route(&[0x90, 60, 100]);
+        events
+            .send(Event {
+                timestamp: 0,
+                bytes: vec![0x90, 60, 100],
+                learned: None,
+                panel_keys: router.key_mask(),
+                encoders: [0; 7],
+                master: None,
+            })
+            .unwrap();
+        let input = Input {
+            rx,
+            status,
+            quit: Arc::new(AtomicBool::new(false)),
+            thread: None,
+            overflow: Arc::new(AtomicBool::new(false)),
+            router: Arc::new(std::sync::Mutex::new(router)),
+            runtime,
+            urgent: Arc::new(AtomicBool::new(false)),
+        };
+        input.reset();
+        assert!(matches!(
+            input.rx.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
+        assert_eq!(input.router.lock().unwrap().key_mask(), 0);
+        // Fresh input after reset must remain observable rather than being suppressed.
+        events
+            .send(Event {
+                timestamp: 1,
+                bytes: vec![0x90, 64, 100],
+                learned: None,
+                panel_keys: 1 << 25,
+                encoders: [0; 7],
+                master: None,
+            })
+            .unwrap();
+        assert_eq!(input.rx.try_recv().unwrap().timestamp, 1);
     }
 }

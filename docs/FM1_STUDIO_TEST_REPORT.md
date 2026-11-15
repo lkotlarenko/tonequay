@@ -151,3 +151,49 @@ workflow correctly uploads artifacts without creating a versioned release.
 An empty-instrument overview smoke used 103.3 MiB peak RSS and approximately
 1.95% of one CPU core, including startup and screenshot capture. No third-party
 firmware artwork is used in the README overview screenshot.
+
+
+## Tonequay 0.2.0 interaction and desktop fixes (2026-11-15)
+
+229 workspace tests pass, including 37 app tests, plus the six existing web
+regressions. Scoped strict Clippy, formatting and release packaging pass. No new
+dependencies or CPU/JIT changes were introduced. Test counts include direct
+secondary-click responses for buttons, drag-only sliders and knobs, nine toolbar
+width/font combinations, bounded folder-path rows, theme-aware opaque renderer
+background, silent assignment capture, replacement, relative encoders, whole-keyboard
+calibration, same-channel pad overlap and preserved absolute encoder calibration.
+
+The virtual ALSA/CPAL integration smoke captured an encoder and piano key without
+playing their gestures, then played/released the learned key after leaving Learn.
+Panic gated 941 callback frames and Resume restored output; no keys remained held.
+See `measurements/panel-learning-v02.json`. This uses a virtual controller, not
+physical MiniLab playing. The callback gate preserves bounded, lock-free audio
+processing and continues draining queued samples while muted.
+
+Isolated native and AppImage startup tests verified the installed desktop icon,
+matching Wayland/launcher ID and files. The native CLI installer also passed with
+an executable path containing spaces. AppImage now carries a real PNG .DirIcon;
+file-manager thumbnail availability still depends on desktop thumbnail support.
+KDE icon resolution is fixed by matching IDs and normal-startup registration,
+not by recoloring a generic icon in the application's own canvas.
+
+Screenshot checks cover normal light/dark themes, MIDI Learn and 940-point
+windows with 20-point/150% and 24-point/180% accessibility settings. Intermediate
+screenshots exposed toolbar clipping and a stretched folder-path row; both were
+fixed and are guarded by layout regressions. Earlier screenshots/logs are retained
+as intermediate evidence rather than represented as final successful layouts.
+
+The packaged callback test also passed: 1412 gated output frames, resumed audio
+and no held keys (`measurements/panel-learning-v02-appimage.json`). Panic's queued
+MIDI feedback is now drained under the router lock, with a regression proving
+that old held-key events disappear while fresh input remains observable. Pending
+Learn is canceled on firmware load/profile import. File comparison for icon
+registration uses bounded reads. The five-case final layout review uses the same
+native UI code; release AppImage and X11/CPAL checks are recorded separately.
+
+Panic/Resume also pass a saturated-queue regression: Runtime updates the actual
+callback atomic directly even when the emulation queue is full. Silence remains
+latched until explicit Resume and is shared across device reconnects and firmware
+loads. Shutdown silences before joining the worker. This avoids relying on timely
+worker command delivery for emergency output control. Host command draining is
+bounded per emulation iteration; the emulated clock and CPU remain unchanged.

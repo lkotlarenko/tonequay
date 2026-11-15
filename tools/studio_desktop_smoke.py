@@ -27,11 +27,10 @@ with tempfile.TemporaryDirectory(prefix='fm1-studio-smoke-') as tmp:
     else:
         env['WINIT_UNIX_BACKEND'] = 'wayland'
     catalog = pathlib.Path('/tmp/fm1-hub.json')
-    if catalog.exists():
-        dest = pathlib.Path(tmp) / 'data/fm1-studio'
-        dest.mkdir(parents=True)
-        (dest / 'catalog.json').write_bytes(catalog.read_bytes())
-        (dest / 'catalog-attempt').write_text(str(int(time.time())))
+    dest = pathlib.Path(tmp) / 'data/fm1-studio'
+    dest.mkdir(parents=True)
+    (dest / 'catalog.json').write_bytes(catalog.read_bytes() if catalog.exists() else b'{"firmwares":[]}')
+    (dest / 'catalog-attempt').write_text(str(int(time.time())))
     if package:
         local = pathlib.Path(tmp) / 'data/fm1-studio/firmwares'
         local.mkdir(parents=True, exist_ok=True)
@@ -55,6 +54,10 @@ with tempfile.TemporaryDirectory(prefix='fm1-studio-smoke-') as tmp:
         code = proc.wait(timeout=10)
         report = {'backend': backend, 'exit_code': code, 'binary': str(binary), 'firmware': str(package),
                   'wall_seconds': time.monotonic() - start, 'clock_ticks': os.sysconf('SC_CLK_TCK'), 'samples': samples}
+    entry = pathlib.Path(tmp) / 'data/applications/tonequay.desktop'
+    report['desktop_icon_registered'] = entry.exists() and 'Icon=tonequay\n' in entry.read_text() and (pathlib.Path(tmp) / 'data/icons/hicolor/256x256/apps/tonequay.png').exists()
+    if not report['desktop_icon_registered']:
+        raise RuntimeError('Desktop icon integration missing from normal startup')
     (report_dir / ('desktop-' + label + '.json')).write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({k: v for k, v in report.items() if k != 'samples'}))
     sys.exit(code)
